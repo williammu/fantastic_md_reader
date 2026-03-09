@@ -1,1 +1,0 @@
-﻿ls: /data/storage/el2/base/haps/com.example.mdreader/files/: Permission denied
