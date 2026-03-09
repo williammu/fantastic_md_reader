@@ -1,0 +1,32 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "MD阅读器 - 支持朗读的Markdown阅读器"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "MD阅读器主入口"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "MD阅读器"
+    },
+    {
+      "name": "read_media_permission",
+      "value": "用于读取本地Markdown文件"
+    },
+    {
+      "name": "write_media_permission",
+      "value": "用于保存阅读进度"
+    },
+    {
+      "name": "internet_permission",
+      "value": "用于云同步功能"
+    },
+    {
+      "name": "background_permission",
+      "value": "用于后台朗读播放"
+    }
+  ]
+}

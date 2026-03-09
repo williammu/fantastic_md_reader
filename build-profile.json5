@@ -1,0 +1,56 @@
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "C:\\Users\\IxorStorm\\.ohos\\config\\default_md_reader_mG4PfzrXFMzF1GRn09phB6R1fWXgIZiCLZuKLnRCKWE=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001BCAA78CFED586E8939C05403B3D7FEDEEF8274579C1E11C95599B9A0EAE8952B4DFA8734C57383D",
+          "profile": "C:\\Users\\IxorStorm\\.ohos\\config\\default_md_reader_mG4PfzrXFMzF1GRn09phB6R1fWXgIZiCLZuKLnRCKWE=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "C:\\Users\\IxorStorm\\.ohos\\config\\default_md_reader_mG4PfzrXFMzF1GRn09phB6R1fWXgIZiCLZuKLnRCKWE=.p12",
+          "storePassword": "0000001B56E7D020DFC1C87A4F9F04017F71D58C3E27448192A84D15CC90641D5DC296B346763EB3DE5F76"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",
+        "targetSdkVersion": "6.0.2(22)",
+        "compatibleSdkVersion": "6.0.2(22)",
+        "runtimeOS": "HarmonyOS",
+        "buildOption": {
+          "strictMode": {
+            "caseSensitiveCheck": true,
+            "useNormalizedOHMUrl": true
+          }
+        }
+      }
+    ],
+    "buildModeSet": [
+      {
+        "name": "debug",
+      },
+      {
+        "name": "release"
+      }
+    ]
+  },
+  "modules": [
+    {
+      "name": "entry",
+      "srcPath": "./entry",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    }
+  ]
+}
