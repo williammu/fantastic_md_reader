@@ -94,10 +94,16 @@ export class MarkdownParser {
     return text
   }
   
-  // 生成锚点 ID
+  // 生成锚点 ID（支持自定义 ID 语法：{#custom-id}）
   private static generateAnchorId(text: string): string {
     // 移除 HTML 标签
     let id = text.replace(/<[^>]+>/g, '')
+    // 提取自定义 ID {...}
+    const customIdMatch = id.match(/\{([^}]+)\}$/)
+    if (customIdMatch) {
+      return customIdMatch[1]
+    }
+    // 没有自定义 ID，生成默认 ID
     // 只保留中文、字母、数字
     id = id.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '-')
     // 移除连续的 -
@@ -107,6 +113,11 @@ export class MarkdownParser {
     // 转为小写
     return id.toLowerCase() || 'heading'
   }
+
+  // 移除自定义 ID {...} 部分
+  private static removeCustomId(text: string): string {
+    return text.replace(/\s*\{[^}]+\}$/, '')
+  }
   
   // 解析标题 # ## ###
   private static parseHeaders(text: string, tags: string[]): string {
@@ -115,10 +126,11 @@ export class MarkdownParser {
       const pattern: string = `^#{${i}}\\s+(.+)$`
       const reg: RegExp = new RegExp(pattern, 'gm')
       text = text.replace(reg, (match: string, p1: string) => {
-        const processedContent = MarkdownParser.parseInlineElements(p1)
-        const anchorId = MarkdownParser.generateAnchorId(processedContent)
+        const contentWithoutCustomId = MarkdownParser.removeCustomId(p1)
+        const processedContent = MarkdownParser.parseInlineElements(contentWithoutCustomId)
+        const anchorId = MarkdownParser.generateAnchorId(p1)
         return MarkdownParser.protectHtmlTag(
-          `<h${i} id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h${i}>`, 
+          `<h${i} id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h${i}>`,
           tags
         )
       })
@@ -126,18 +138,20 @@ export class MarkdownParser {
     
     // 替代 H1/H2 语法 === ---（处理行内元素，添加锚点）
     text = text.replace(/^(.+)\n={3,}$/gm, (match: string, p1: string) => {
-      const processedContent = MarkdownParser.parseInlineElements(p1)
-      const anchorId = MarkdownParser.generateAnchorId(processedContent)
+      const contentWithoutCustomId = MarkdownParser.removeCustomId(p1)
+      const processedContent = MarkdownParser.parseInlineElements(contentWithoutCustomId)
+      const anchorId = MarkdownParser.generateAnchorId(p1)
       return MarkdownParser.protectHtmlTag(
-        `<h1 id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h1>`, 
+        `<h1 id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h1>`,
         tags
       )
     })
     text = text.replace(/^(.+)\n-{3,}$/gm, (match: string, p1: string) => {
-      const processedContent = MarkdownParser.parseInlineElements(p1)
-      const anchorId = MarkdownParser.generateAnchorId(processedContent)
+      const contentWithoutCustomId = MarkdownParser.removeCustomId(p1)
+      const processedContent = MarkdownParser.parseInlineElements(contentWithoutCustomId)
+      const anchorId = MarkdownParser.generateAnchorId(p1)
       return MarkdownParser.protectHtmlTag(
-        `<h2 id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h2>`, 
+        `<h2 id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h2>`,
         tags
       )
     })
@@ -158,8 +172,10 @@ export class MarkdownParser {
         let title = match[2].trim()
         // 移除行内 Markdown 标记获取纯文本
         title = title.replace(/\*\*/g, '').replace(/\*/g, '').replace(/~~/g, '').replace(/`/g, '')
+        // 移除自定义 ID {...}
+        const titleForDisplay = MarkdownParser.removeCustomId(title)
         const anchorId = MarkdownParser.generateAnchorId(title)
-        toc.push({ level, title, anchorId })
+        toc.push({ level, title: titleForDisplay, anchorId })
       }
     }
     

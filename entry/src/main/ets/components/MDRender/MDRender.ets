@@ -1,40 +1,38 @@
 import { ThemeColors } from '../../models/Theme'
 import { MarkdownParser } from '../../utils/MarkdownParser'
+import { HTMLGenerator } from '../../utils/HTMLGenerator'
+import webview from '@ohos.web.webview'
 
-// Markdown 渲染组件（使用 Text 组件，支持 Markdown 解析）
 @Component
 export struct MDRender {
-  @Prop content: string           // Markdown 内容
-  @Prop themeColors: ThemeColors          // 主题颜色
-  @Prop fontSize: number = 16             // 字体大小
-  @Prop lineHeight: number = 1.6          // 行高
-  @Prop enableHighlight: boolean = false  // 是否启用朗读高亮
-  @Prop scrollToAnchor: string = '' // 要滚动到的锚点ID
-  
-  // 解析 Markdown 内容为纯文本
-  private getParsedContent(): string {
+  @Prop content: string
+  @Prop themeColors: ThemeColors
+  @Prop fontSize: number = 16
+  @Prop lineHeight: number = 1.6
+  @Prop enableHighlight: boolean = false
+  @Prop scrollToAnchor: string = ''
+
+  private htmlContent: string = ''
+
+  aboutToAppear() {
     try {
-      // 解析 Markdown 为 HTML
-      const html = MarkdownParser.parse(this.content)
-      // 移除 HTML 标签，保留纯文本
-      return html.replace(/<[^>]+>/g, '')
+      const htmlBody = MarkdownParser.parse(this.content)
+      this.htmlContent = HTMLGenerator.generate(htmlBody, this.themeColors, this.fontSize, this.lineHeight)
     } catch (e) {
-      return this.content
+      console.error('[MDRender] parse error:', e)
+      this.htmlContent = '<html><body><p>Error rendering content</p></body></html>'
     }
   }
-  
+
   build() {
-    Scroll() {
-      Column() {
-        // 渲染 Markdown 内容（使用 MarkdownParser 解析）
-        Text(this.getParsedContent())
-          .fontSize(this.fontSize)
-          .lineHeight(this.fontSize * this.lineHeight)
-          .fontColor(this.themeColors.textPrimary)
-          .padding(16)
-          .textAlign(TextAlign.Start)
-      }
-      .width('100%')
+    Column() {
+      Web({
+        src: `data:text/html;charset=utf-8,${encodeURIComponent(this.htmlContent)}`,
+        controller: new webview.WebviewController()
+      })
+        .javaScriptAccess(true)
+        .domStorageAccess(true)
+        .backgroundColor(this.themeColors.background)
     }
     .width('100%')
     .height('100%')

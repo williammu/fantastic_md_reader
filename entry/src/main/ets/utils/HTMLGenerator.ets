@@ -16,6 +16,26 @@ export class HTMLGenerator {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <title>MD Reader</title>
+  <script>
+    document.addEventListener('click', function(e) {
+      var target = e.target;
+      while (target && target.tagName !== 'A') {
+        target = target.parentElement;
+        if (!target) return;
+      }
+      if (target && target.tagName === 'A') {
+        var href = target.getAttribute('href');
+        if (href && href.charAt(0) === '#') {
+          e.preventDefault();
+          var anchorId = href.substring(1);
+          var el = document.getElementById(anchorId);
+          if (el) {
+            el.scrollIntoView({behavior: 'smooth'});
+          }
+        }
+      }
+    });
+  </script>
   <style>
     ${HTMLGenerator.getCSS(themeColors, fontSize, lineHeight)}
   </style>
