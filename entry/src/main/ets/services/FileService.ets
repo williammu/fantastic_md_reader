@@ -112,14 +112,34 @@ export class FileService {
       // 确保沙盒目录存在
       FileService.ensureSandboxDir()
 
-      // 测试文件内容
-      const anchorTestContent = "# 锚点跳转测试文档\n\n> 测试时间：2026年3月8日\n> 用于测试 Markdown 中的目录链接跳转功能\n\n---\n\n## 目录\n\n1. [第一节：测试概述](#第一节测试概述)\n2. [第二节：问题描述](#第二节问题描述)\n3. [第三节：解决方案](#第三节解决方案)\n4. [第四节：测试结果](#第四节测试结果)\n\n---\n\n## 第一节：测试概述\n\n这是第一个章节的内容。点击上面的目录链接应该能够跳转到本章节。\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.\n\n### 1.1 测试目的\n\n验证 Markdown 文档中的目录链接能够正确跳转到对应的章节。\n\n### 1.2 测试环境\n\n- 设备：HarmonyOS\n- 应用：MD Reader\n- 测试日期：2026年3月8日\n\n---\n\n## 第二节：问题描述\n\n这是第二个章节的内容。之前目录链接点击后没有反应，经过多轮调试发现以下问题：\n\n### 2.1 问题一：空格处理\n\n原始目录链接格式：\n\`\`\`\n[第一节：测试概述](#第一节测试概述)\n\`\`\`\n\n部分文档中可能包含空格：\n\`\`\`\n[第一节：测试概述](#第一节测试概述 )\n\`\`\`\n\n### 2.2 问题二：大小写不匹配\n\n标题 ID 会被转换为小写：\n- 标题：`## 第一节：测试概述`\n- 生成 ID：`#第一节测试概述`（小写）\n- 目录链接：`#第一节测试概述`（原始大小写）\n\n---\n\n## 第三节：解决方案\n\n这是第三个章节的内容。针对上述问题，采用了以下解决方案：\n\n### 3.1 修复空格处理\n\n修改正则表达式，支持 # 号前后有空格的情况：\n\`\`\`javascript\n/\\[([^\\]]+)\\]\\(\\s*(#\\S+)\\s*\\)/g\n\`\`\`\n\n### 3.2 修复大小写匹配\n\n在 JavaScript 中将锚点 ID 转换为小写：\n\`\`\`javascript\nvar anchorId = href.substring(hashIndex + 1).toLowerCase();\n\`\`\`\n\n---\n\n## 第四节：测试结果\n\n这是第四个章节的内容。测试结果如下：\n\n### 4.1 通过的测试项\n\n- ✅ 目录链接点击跳转\n- ✅ 标题 ID 生成\n- ✅ 空格处理\n- ✅ 大小写匹配\n\n### 4.2 待验证\n\n- [ ] 不同格式的锚点链接\n- [ ] 嵌套目录\n- [ ] 特殊字符处理\n\n---\n\n## 总结\n\n本文档用于测试 Markdown 目录链接跳转功能。通过点击上方的目录链接，可以快速跳转到对应的章节。"
+      // 扫描 rawfile 目录中的所有 Markdown 文件
+      // 使用应用包内的资源路径
+      const rawfileDir = getContext().resourceDir + '/rawfile'
+      const rawfileFiles: string[] = []
       
-      const testCaseContent = "# 测试用例文档\n\n## 基本测试\n\n- 测试 1: 基本功能\n- 测试 2: 性能测试\n- 测试 3: 兼容性测试\n\n## 高级测试\n\n- 测试 4: 边界情况\n- 测试 5: 安全测试"
-      
-      // 测试文件列表
-      const testFileNames = ['anchor_test.md', 'test_case.md']
-      const testFileContents = [anchorTestContent, testCaseContent]
+      try {
+        const msgScanRawfile = '[FileService] Scanning rawfile directory: ' + rawfileDir
+        console.log(msgScanRawfile)
+        FileService.writeLogToFile(msgScanRawfile)
+        
+        const allFiles = fileIo.listFileSync(rawfileDir)
+        for (const f of allFiles) {
+          if (f.endsWith('.md') || f.endsWith('.markdown')) {
+            rawfileFiles.push(f)
+            const msgFound = '[FileService] Found rawfile: ' + f
+            console.log(msgFound)
+            FileService.writeLogToFile(msgFound)
+          }
+        }
+        
+        const msgScanResult = '[FileService] Found ' + rawfileFiles.length + ' Markdown files in rawfile'
+        console.log(msgScanResult)
+        FileService.writeLogToFile(msgScanResult)
+      } catch (e) {
+        const msgScanError = '[FileService] Failed to scan rawfile directory: ' + e
+        console.log(msgScanError)
+        FileService.writeLogToFile(msgScanError)
+      }
 
       // 获取沙盒目录中的已有文件
       const sandboxFiles = new Set<string>()
@@ -146,16 +166,34 @@ export class FileService {
         FileService.writeLogToFile(msg5)
       }
 
-      // 创建测试文件
-      for (let i = 0; i < testFileNames.length; i++) {
-        const fileName = testFileNames[i]
-        const content = testFileContents[i]
-        
-        if (sandboxFiles.has(fileName)) {
-          const msg6 = '[FileService] Skipping ' + fileName + ', already exists in sandbox'
-          console.log(msg6)
-          FileService.writeLogToFile(msg6)
+      // 拷贝 rawfile 中的所有 Markdown 文件到沙盒
+      for (const fileName of rawfileFiles) {
+        // 读取 rawfile 中的文件内容
+        let content = ''
+        try {
+          const rawfilePath = rawfileDir + '/' + fileName
+          content = fileIo.readTextSync(rawfilePath)
+          const msgRead = '[FileService] Read ' + fileName + ' from rawfile, length: ' + content.length
+          console.log(msgRead)
+          FileService.writeLogToFile(msgRead)
+        } catch (e) {
+          const msgReadError = '[FileService] Failed to read ' + fileName + ' from rawfile: ' + e
+          console.log(msgReadError)
+          FileService.writeLogToFile(msgReadError)
           continue
+        }
+        
+        // 删除已存在的文件以强制重新创建
+        if (sandboxFiles.has(fileName)) {
+          try {
+            const existingFilePath = sandboxDir + '/' + fileName
+            fileIo.unlinkSync(existingFilePath)
+            const msgDelete = '[FileService] Deleted existing file: ' + fileName
+            console.log(msgDelete)
+            FileService.writeLogToFile(msgDelete)
+          } catch (e) {
+            // 忽略删除错误
+          }
         }
 
         const destPath = sandboxDir + '/' + fileName

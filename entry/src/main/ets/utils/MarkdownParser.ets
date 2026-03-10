@@ -95,23 +95,40 @@ export class MarkdownParser {
   }
   
   // 生成锚点 ID（支持自定义 ID 语法：{#custom-id}）
+  // 符合 GFM 规范：小写、移除标点、空格变连字符
   private static generateAnchorId(text: string): string {
     // 移除 HTML 标签
     let id = text.replace(/<[^>]+>/g, '')
+    
     // 提取自定义 ID {...}
     const customIdMatch = id.match(/\{([^}]+)\}$/)
     if (customIdMatch) {
-      return customIdMatch[1]
+      // 移除可能的 # 前缀
+      let customId = customIdMatch[1]
+      if (customId.startsWith('#')) {
+        customId = customId.substring(1)
+      }
+      return customId
     }
-    // 没有自定义 ID，生成默认 ID
-    // 只保留中文、字母、数字
-    id = id.replace(/[^\u4e00-\u9fa5a-zA-Z0-9]/g, '-')
-    // 移除连续的 -
+    
+    // GFM 规范：生成默认 ID
+    // 1. 转为小写
+    id = id.toLowerCase()
+    
+    // 2. 移除所有标点符号（包括中文标点），但保留空格
+    // 中文标点范围：\u3000-\u303F（CJK符号和标点）
+    id = id.replace(/[\u3000-\u303F\uFF00-\uFFEF!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]/g, '')
+    
+    // 3. 将空格替换为连字符
+    id = id.replace(/\s+/g, '-')
+    
+    // 4. 移除连续的连字符
     id = id.replace(/-+/g, '-')
-    // 移除首尾的 -
+    
+    // 5. 移除首尾的连字符
     id = id.replace(/^-|-$/g, '')
-    // 转为小写
-    return id.toLowerCase() || 'heading'
+    
+    return id || 'heading'
   }
 
   // 移除自定义 ID {...} 部分
@@ -517,7 +534,9 @@ export class MarkdownParser {
     text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">')
     
     // 链接 [text](url) - 锚点链接添加特殊标记（处理 # 号前后有空格的情况）
-    text = text.replace(/\[([^\]]+)\]\(\s*(#\S+)\s*\)/g, '<a href="$2" data-anchor-link="true">$1</a>')
+    // 注意：不对锚点 ID 进行处理，保持用户原始输入
+    // 因为锚点 ID 可能是自定义的（如 section-1-overview），处理后会破坏链接
+    text = text.replace(/\[([^\]]+)\]\(\s*(#[^)]+)\s*\)/g, '<a href="$2" data-anchor-link="true">$1</a>')
     text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
     
     // 自动链接 <url>

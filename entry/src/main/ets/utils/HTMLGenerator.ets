@@ -10,14 +10,19 @@ interface TokenInfo {
 export class HTMLGenerator {
   // 生成完整的 HTML 文档
   static generate(htmlContent: string, themeColors: ThemeColors, fontSize: number = 16, lineHeight: number = 1.6): string {
-    return `<!DOCTYPE html>
+    console.log('[HTMLGenerator] Generating HTML, content length:', htmlContent.length)
+    
+    const html = `<!DOCTYPE html>
 <html>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
   <title>MD Reader</title>
   <script>
+    console.log('[WebView] HTML loaded, JS running');
+    
     document.addEventListener('click', function(e) {
+      console.log('[WebView] Click event detected');
       var target = e.target;
       while (target && target.tagName !== 'A') {
         target = target.parentElement;
@@ -25,16 +30,39 @@ export class HTMLGenerator {
       }
       if (target && target.tagName === 'A') {
         var href = target.getAttribute('href');
+        console.log('[WebView] Link clicked, href:', href);
         if (href && href.charAt(0) === '#') {
           e.preventDefault();
           var anchorId = href.substring(1);
+          console.log('[WebView] Anchor ID:', anchorId);
           var el = document.getElementById(anchorId);
           if (el) {
+            console.log('[WebView] Element found, scrolling...');
             el.scrollIntoView({behavior: 'smooth'});
+          } else {
+            console.log('[WebView] Element NOT found for ID:', anchorId);
+            // 尝试查找所有ID
+            var allIds = [];
+            var elementsWithId = document.querySelectorAll('[id]');
+            for (var i = 0; i < elementsWithId.length; i++) {
+              allIds.push(elementsWithId[i].id);
+            }
+            console.log('[WebView] Available IDs:', allIds.join(', '));
           }
         }
       }
     });
+    
+    // 页面加载完成后输出所有锚点
+    window.onload = function() {
+      console.log('[WebView] Window onload');
+      var headings = document.querySelectorAll('h1, h2, h3, h4, h5, h6');
+      console.log('[WebView] Found', headings.length, 'headings');
+      for (var i = 0; i < headings.length; i++) {
+        var h = headings[i];
+        console.log('[WebView] Heading:', h.tagName, 'ID:', h.id, 'Text:', h.textContent.substring(0, 50));
+      }
+    };
   </script>
   <style>
     ${HTMLGenerator.getCSS(themeColors, fontSize, lineHeight)}
@@ -46,6 +74,9 @@ export class HTMLGenerator {
   </article>
 </body>
 </html>`
+    
+    console.log('[HTMLGenerator] HTML generated successfully')
+    return html
   }
   
   // 生成 CSS 样式
