@@ -3,6 +3,9 @@ import { Document, createDocument } from '../models/Document'
 import { BusinessError } from '@kit.BasicServicesKit'
 import { util } from '@kit.ArkTS'
 import { SharedFileStorage } from '../entryability/EntryAbility'
+import { hilog } from '@kit.PerformanceAnalysisKit'
+
+const DOMAIN = 0x0002
 
 // 文档服务：管理本地 Markdown 文件
 export class FileService {
@@ -12,6 +15,7 @@ export class FileService {
   // 获取沙盒目录路径
   private static getSandboxDir(): string {
     const filesDir = SharedFileStorage.getFilesDir();
+    hilog.info(DOMAIN, 'testTag', '[FileService] getSandboxDir, filesDir: %{public}s', filesDir)
     if (filesDir) {
       return filesDir + '/shared';
     }
@@ -36,27 +40,27 @@ export class FileService {
       try {
         fileIo.mkdirSync(filesDir)
         const msg = '[FileService] Created files directory: ' + filesDir
-        console.log(msg)
+        hilog.info(DOMAIN, 'testTag', '%{public}s', msg)
         FileService.writeLogToFile(msg)
       } catch (e) {
         const msg = '[FileService] files directory already exists'
-        console.log(msg)
+        hilog.info(DOMAIN, 'testTag', '%{public}s', msg)
         FileService.writeLogToFile(msg)
       }
       
       try {
         fileIo.mkdirSync(sandboxDir)
         const msg = '[FileService] Created shared directory: ' + sandboxDir
-        console.log(msg)
+        hilog.info(DOMAIN, 'testTag', '%{public}s', msg)
         FileService.writeLogToFile(msg)
       } catch (e) {
         const msg = '[FileService] shared directory already exists'
-        console.log(msg)
+        hilog.info(DOMAIN, 'testTag', '%{public}s', msg)
         FileService.writeLogToFile(msg)
       }
     } catch (e) {
       const msg = '[FileService] Failed to ensure sandbox directory: ' + e
-      console.log(msg)
+      hilog.info(DOMAIN, 'testTag', '%{public}s', msg)
       FileService.writeLogToFile(msg)
     }
   }
@@ -72,7 +76,7 @@ export class FileService {
 
       const files = fileIo.listFileSync(sandboxDir)
       const msg = '[FileService] Found ' + files.length + ' files in sandbox: ' + files.join(', ')
-      console.log(msg)
+      hilog.info(DOMAIN, 'testTag', '%{public}s', msg)
       FileService.writeLogToFile(msg)
       
       for (const fileName of files) {
@@ -82,18 +86,18 @@ export class FileService {
             const stat = fileIo.statSync(filePath)
             docs.push(createDocument(filePath, fileName, stat.size, stat.mtime * 1000))
             const msg = '[FileService] Added file: ' + fileName + ', size: ' + stat.size
-            console.log(msg)
+            hilog.info(DOMAIN, 'testTag', '%{public}s', msg)
             FileService.writeLogToFile(msg)
           } catch (e) {
             const msg = '[FileService] Failed to stat ' + filePath + ': ' + e
-            console.log(msg)
+            hilog.info(DOMAIN, 'testTag', '%{public}s', msg)
             FileService.writeLogToFile(msg)
           }
         }
       }
     } catch (err) {
       const msg = '[FileService] Failed to scan sandbox: ' + err
-      console.log(msg)
+      hilog.info(DOMAIN, 'testTag', '%{public}s', msg)
       FileService.writeLogToFile(msg)
     }
 
@@ -106,7 +110,7 @@ export class FileService {
 
     try {
       const msg1 = '[FileService] Starting createTestFiles'
-      console.log(msg1)
+      hilog.info(DOMAIN, 'testTag', '%{public}s', msg1)
       FileService.writeLogToFile(msg1)
       
       // 确保沙盒目录存在
@@ -292,8 +296,60 @@ export class FileService {
     return docs
   }
 
+  // 首次安装时从 rawfile 拷贝 md 文件到沙盒
+  private static async copyRawFilesToSandbox(context: Context): Promise<Document[]> {
+    const docs: Document[] = []
+
+    try {
+      hilog.info(DOMAIN, 'testTag', '%{public}s', '[FileService] Starting copyRawFilesToSandbox')
+      
+      FileService.ensureSandboxDir()
+
+      const sandboxDir = FileService.getSandboxDir()
+      
+      // 使用 resourceManager 获取 rawfile 列表
+      hilog.info(DOMAIN, 'testTag', '%{public}s', '[FileService] Getting rawfile list from resourceManager')
+      const rawFileList: string[] = await context.resourceManager.getRawFileList('')
+      hilog.info(DOMAIN, 'testTag', '[FileService] Rawfile list: %{public}s', rawFileList.join(', '))
+      
+      const rawfileFiles = rawFileList.filter((f: string) => f.endsWith('.md') || f.endsWith('.markdown'))
+      
+      hilog.info(DOMAIN, 'testTag', '[FileService] Found %{public}d md files in rawfile', rawfileFiles.length)
+
+      for (const fileName of rawfileFiles) {
+        try {
+          const destPath = sandboxDir + '/' + fileName
+          
+          hilog.info(DOMAIN, 'testTag', '[FileService] Reading rawfile: %{public}s', fileName)
+          // 使用 resourceManager.getRawFileContent 读取 rawfile
+          const rawFileContent: Uint8Array = await context.resourceManager.getRawFileContent(fileName)
+          hilog.info(DOMAIN, 'testTag', '[FileService] Rawfile content length: %{public}d', rawFileContent.length)
+          
+          // 直接将原始字节写入沙盒（保持 UTF-8 编码）
+          const destFile = fileIo.openSync(destPath, fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC)
+          // 使用 slice 获取正确的 ArrayBuffer 部分
+          const buffer = rawFileContent.buffer.slice(rawFileContent.byteOffset, rawFileContent.byteOffset + rawFileContent.byteLength)
+          fileIo.writeSync(destFile.fd, buffer)
+          fileIo.closeSync(destFile)
+          
+          const stat = fileIo.statSync(destPath)
+          docs.push(createDocument(destPath, fileName, stat.size, stat.mtime * 1000))
+          
+          hilog.info(DOMAIN, 'testTag', '[FileService] Copied %{public}s (%{public}d bytes)', fileName, stat.size)
+        } catch (e) {
+          hilog.error(DOMAIN, 'testTag', '[FileService] Failed to copy %{public}s: %{public}s', fileName, JSON.stringify(e))
+        }
+      }
+    } catch (err) {
+      hilog.error(DOMAIN, 'testTag', '[FileService] copyRawFilesToSandbox failed: %{public}s', JSON.stringify(err))
+    }
+
+    hilog.info(DOMAIN, 'testTag', '[FileService] copyRawFilesToSandbox completed, copied %{public}d files', docs.length)
+    return docs
+  }
+
   // 扫描指定目录下的 Markdown 文件
-  static async scanDirectory(): Promise<Document[]> {
+  static async scanDirectory(context: Context): Promise<Document[]> {
     if (FileService.scanning) {
       throw new Error('已有扫描任务进行中')
     }
@@ -302,27 +358,25 @@ export class FileService {
     FileService.abortFlag = false
 
     try {
-      const msg1 = '[FileService] Starting scanDirectory'
-      console.log(msg1)
-      FileService.writeLogToFile(msg1)
+      hilog.info(DOMAIN, 'testTag', '%{public}s', '[FileService] Starting scanDirectory')
       
-      // 扫描沙盒中的共享文件
+      // 扫描沙盒中的现有文件
       const sandboxDocs = await FileService.scanSandboxFiles()
-      const msg2 = '[FileService] Found ' + sandboxDocs.length + ' files in sandbox'
-      console.log(msg2)
-      FileService.writeLogToFile(msg2)
+      hilog.info(DOMAIN, 'testTag', '[FileService] Found %{public}d files in sandbox', sandboxDocs.length)
 
-      // 创建测试文件到沙盒
-      const testDocs = await FileService.createTestFiles()
-      const msg3 = '[FileService] Created ' + testDocs.length + ' test files'
-      console.log(msg3)
-      FileService.writeLogToFile(msg3)
+      // 如果沙盒中没有 md 文件，从 rawfile 拷贝
+      if (sandboxDocs.length === 0) {
+        hilog.info(DOMAIN, 'testTag', '%{public}s', '[FileService] No files in sandbox, copying from rawfile')
+        
+        const copiedDocs = await FileService.copyRawFilesToSandbox(context)
+        hilog.info(DOMAIN, 'testTag', '[FileService] Copied %{public}d files from rawfile', copiedDocs.length)
+      } else {
+        hilog.info(DOMAIN, 'testTag', '%{public}s', '[FileService] Files already exist in sandbox, skipping copy')
+      }
 
       // 重新扫描沙盒获取所有文件
       const allDocs = await FileService.scanSandboxFiles()
-      const msg4 = '[FileService] Total files: ' + allDocs.length
-      console.log(msg4)
-      FileService.writeLogToFile(msg4)
+      hilog.info(DOMAIN, 'testTag', '[FileService] Total files: %{public}d', allDocs.length)
 
       return allDocs
     } finally {

@@ -33,11 +33,19 @@ export class MarkdownParser {
     let html: string = md
     const saved: ProtectedContent = { blocks: [], tags: [] }
     
+    // 先处理转义字符（避免被其他解析器误处理）
+    // 使用临时占位符保存转义的字符
+    const escapedChars: string[] = []
+    html = html.replace(/\\(.)/g, (match: string, char: string) => {
+      escapedChars.push(char)
+      return `\u0003ESCAPE${escapedChars.length - 1}\u0003`
+    })
+    
     // 代码块（需要在行内代码之前处理，且不转义内部内容）
     html = MarkdownParser.extractCodeBlocks(html, saved.blocks)
     
     // 引用块
-    html = MarkdownParser.parseBlockquotes(html, saved.tags)
+    html = MarkdownParser.parseBlockquotes(html, saved.tags, saved.blocks)
     
     // 列表（需要递归处理嵌套）
     html = MarkdownParser.parseLists(html, saved.tags)
@@ -45,17 +53,22 @@ export class MarkdownParser {
     // 表格
     html = MarkdownParser.parseTables(html, saved.tags)
     
+    // 标题（先处理标题，避免替代语法的===和---被分割线解析器误处理）
+    html = MarkdownParser.parseHeaders(html, saved.tags)
+    
     // 分割线
     html = MarkdownParser.parseHorizontalRules(html, saved.tags)
-    
-    // 标题
-    html = MarkdownParser.parseHeaders(html, saved.tags)
     
     // 段落（内部已包含行内元素解析）
     html = MarkdownParser.parseParagraphs(html, saved.tags)
     
     // 恢复所有保护的内容
     html = MarkdownParser.restoreProtectedContent(html, saved)
+    
+    // 最后恢复转义的字符
+    for (let i = escapedChars.length - 1; i >= 0; i--) {
+      html = html.replace(new RegExp(`\u0003ESCAPE${i}\u0003`, 'g'), escapedChars[i])
+    }
     
     return html
   }
@@ -138,22 +151,7 @@ export class MarkdownParser {
   
   // 解析标题 # ## ###
   private static parseHeaders(text: string, tags: string[]): string {
-    // H1-H6（处理行内元素，添加锚点）
-    for (let i: number = 6; i >= 1; i--) {
-      const pattern: string = `^#{${i}}\\s+(.+)$`
-      const reg: RegExp = new RegExp(pattern, 'gm')
-      text = text.replace(reg, (match: string, p1: string) => {
-        const contentWithoutCustomId = MarkdownParser.removeCustomId(p1)
-        const processedContent = MarkdownParser.parseInlineElements(contentWithoutCustomId)
-        const anchorId = MarkdownParser.generateAnchorId(p1)
-        return MarkdownParser.protectHtmlTag(
-          `<h${i} id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h${i}>`,
-          tags
-        )
-      })
-    }
-    
-    // 替代 H1/H2 语法 === ---（处理行内元素，添加锚点）
+    // 先处理替代 H1/H2 语法 === ---（处理行内元素，添加锚点）
     text = text.replace(/^(.+)\n={3,}$/gm, (match: string, p1: string) => {
       const contentWithoutCustomId = MarkdownParser.removeCustomId(p1)
       const processedContent = MarkdownParser.parseInlineElements(contentWithoutCustomId)
@@ -172,6 +170,21 @@ export class MarkdownParser {
         tags
       )
     })
+    
+    // 再处理 H1-H6（处理行内元素，添加锚点）
+    for (let i: number = 6; i >= 1; i--) {
+      const pattern: string = `^#{${i}}\\s+(.+)$`
+      const reg: RegExp = new RegExp(pattern, 'gm')
+      text = text.replace(reg, (match: string, p1: string) => {
+        const contentWithoutCustomId = MarkdownParser.removeCustomId(p1)
+        const processedContent = MarkdownParser.parseInlineElements(contentWithoutCustomId)
+        const anchorId = MarkdownParser.generateAnchorId(p1)
+        return MarkdownParser.protectHtmlTag(
+          `<h${i} id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h${i}>`,
+          tags
+        )
+      })
+    }
     
     return text
   }
@@ -200,12 +213,12 @@ export class MarkdownParser {
   }
   
   // 解析引用块 > - 支持嵌套和多行
-  private static parseBlockquotes(text: string, tags: string[]): string {
+  private static parseBlockquotes(text: string, tags: string[], blocks: string[]): string {
     const lines: string[] = text.split('\n')
     const result: string[] = []
     let inQuote: boolean = false
     let quoteLines: string[] = []
-    
+
     for (const line of lines) {
       if (line.startsWith('> ')) {
         inQuote = true
@@ -217,7 +230,7 @@ export class MarkdownParser {
       } else {
         if (inQuote) {
           // 结束引用块
-          const content: string = MarkdownParser.processQuoteContent(quoteLines, tags)
+          const content: string = MarkdownParser.processQuoteContent(quoteLines, tags, blocks)
           result.push(MarkdownParser.protectHtmlTag(`<blockquote>${content}</blockquote>`, tags))
           inQuote = false
           quoteLines = []
@@ -225,25 +238,24 @@ export class MarkdownParser {
         result.push(line)
       }
     }
-    
+
     // 处理未闭合的引用
     if (inQuote) {
-      const content: string = MarkdownParser.processQuoteContent(quoteLines, tags)
+      const content: string = MarkdownParser.processQuoteContent(quoteLines, tags, blocks)
       result.push(MarkdownParser.protectHtmlTag(`<blockquote>${content}</blockquote>`, tags))
     }
-    
+
     return result.join('\n')
   }
   
-  // 处理引用内容（支持嵌套）
-  private static processQuoteContent(lines: string[], tags: string[]): string {
-    // 递归处理嵌套引用
+  // 处理引用内容（支持嵌套，递归解析内部 Markdown）
+  private static processQuoteContent(lines: string[], tags: string[], blocks: string[]): string {
     const content: string = lines.join('\n')
-    
+
     // 检查是否有嵌套引用
     const nestedLines: string[] = []
     let hasNested: boolean = false
-    
+
     for (const line of lines) {
       if (line.startsWith('> ')) {
         hasNested = true
@@ -255,16 +267,44 @@ export class MarkdownParser {
         nestedLines.push(line)
       }
     }
-    
+
     if (hasNested) {
-      // 有嵌套，递归处理
-      const processed: string = MarkdownParser.parseBlockquotes(nestedLines.join('\n'), tags)
-      // 包装段落
-      return MarkdownParser.wrapQuoteParagraphs(processed, tags)
+      // 有嵌套，递归处理嵌套引用
+      const processed: string = MarkdownParser.parseBlockquotes(nestedLines.join('\n'), tags, blocks)
+      // 继续解析内部内容（列表、表格等）
+      return MarkdownParser.parseQuoteInternal(processed, tags, blocks)
     }
-    
-    // 无嵌套，直接包装段落
-    return MarkdownParser.wrapQuoteParagraphs(content, tags)
+
+    // 无嵌套，解析内部内容
+    return MarkdownParser.parseQuoteInternal(content, tags, blocks)
+  }
+
+  // 解析引用块内部的内容（代码块、列表、表格、标题、段落等）
+  private static parseQuoteInternal(text: string, tags: string[], blocks: string[]): string {
+    let html: string = text
+
+    // 首先提取代码块（引用块内的代码块）
+    html = MarkdownParser.extractCodeBlocks(html, blocks)
+
+    // 递归处理嵌套引用
+    html = MarkdownParser.parseBlockquotes(html, tags, blocks)
+
+    // 解析列表
+    html = MarkdownParser.parseLists(html, tags)
+
+    // 解析表格
+    html = MarkdownParser.parseTables(html, tags)
+
+    // 解析分割线
+    html = MarkdownParser.parseHorizontalRules(html, tags)
+
+    // 解析标题
+    html = MarkdownParser.parseHeaders(html, tags)
+
+    // 解析段落（包含行内元素）
+    html = MarkdownParser.parseParagraphs(html, tags)
+
+    return html
   }
   
   // 包装引用内的段落
@@ -524,8 +564,14 @@ export class MarkdownParser {
     // 粗体 **text**
     text = text.replace(/\*\*([^\*]+)\*\*/g, '<strong>$1</strong>')
     
-    // 斜体 *text* (注意：不使用 _ 作为斜体标记，因为会和占位符冲突)
+    // 粗体 __text__
+    text = text.replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    
+    // 斜体 *text*
     text = text.replace(/\*([^\*]+)\*/g, '<em>$1</em>')
+    
+    // 斜体 _text_ (需要确保不是单词中间的下划线)
+    text = text.replace(/\b_([^_]+)_\b/g, '<em>$1</em>')
     
     // 删除线 ~~text~~
     text = text.replace(/~~([^~]+)~~/g, '<del>$1</del>')

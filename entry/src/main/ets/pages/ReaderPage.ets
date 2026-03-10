@@ -6,40 +6,59 @@ import { ttsService, TTSState } from '../services/TTSService'
 import { ParagraphSplitter } from '../utils/ParagraphSplitter'
 import { FileService } from '../services/FileService'
 import { fileIo } from '@kit.CoreFileKit'
-import { buffer } from '@kit.ArkTS'
+import { buffer, util } from '@kit.ArkTS'
 import { SharedFileStorage } from '../entryability/EntryAbility'
 import { MarkdownParser, TocItem } from '../utils/MarkdownParser'
 import { promptAction } from '@kit.ArkUI'
+import { hilog } from '@kit.PerformanceAnalysisKit'
 
-// UTF-8 解码函数（ArkTS兼容）
+const DOMAIN = 0x0004
+
+// UTF-8 解码函数（使用系统 TextDecoder）
 function decodeUtf8(uint8Array: Uint8Array): string {
+  try {
+    // 使用 ArkTS 提供的 TextDecoder
+    const decoder = new util.TextDecoder('utf-8')
+    return decoder.decodeToString(uint8Array)
+  } catch (e) {
+    hilog.error(DOMAIN, 'testTag', '[ReaderPage] TextDecoder failed: %{public}s', JSON.stringify(e))
+    // 降级：手动解码
+    return decodeUtf8Manual(uint8Array)
+  }
+}
+
+// 手动 UTF-8 解码（备用方案）
+function decodeUtf8Manual(uint8Array: Uint8Array): string {
   let result = ''
   let i = 0
   while (i < uint8Array.length) {
     const byte1 = uint8Array[i]
-    if (byte1 < 0x80) {
+    // 处理无符号字节
+    const b1 = byte1 & 0xFF
+    
+    if (b1 < 0x80) {
       // 单字节 ASCII
-      result += String.fromCharCode(byte1)
+      result += String.fromCharCode(b1)
       i++
-    } else if ((byte1 & 0xE0) === 0xC0) {
+    } else if ((b1 & 0xE0) === 0xC0) {
       // 双字节 UTF-8
-      const byte2 = uint8Array[i + 1]
-      const code = ((byte1 & 0x1F) << 6) | (byte2 & 0x3F)
+      const b2 = uint8Array[i + 1] & 0xFF
+      const code = ((b1 & 0x1F) << 6) | (b2 & 0x3F)
       result += String.fromCharCode(code)
       i += 2
-    } else if ((byte1 & 0xF0) === 0xE0) {
+    } else if ((b1 & 0xF0) === 0xE0) {
       // 三字节 UTF-8（中文常用）
-      const byte2 = uint8Array[i + 1]
-      const byte3 = uint8Array[i + 2]
-      const code = ((byte1 & 0x0F) << 12) | ((byte2 & 0x3F) << 6) | (byte3 & 0x3F)
+      const b2 = uint8Array[i + 1] & 0xFF
+      const b3 = uint8Array[i + 2] & 0xFF
+      const code = ((b1 & 0x0F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F)
       result += String.fromCharCode(code)
       i += 3
-    } else if ((byte1 & 0xF8) === 0xF0) {
+    } else if ((b1 & 0xF8) === 0xF0) {
       // 四字节 UTF-8
-      const byte2 = uint8Array[i + 1]
-      const byte3 = uint8Array[i + 2]
-      const byte4 = uint8Array[i + 3]
-      let code = ((byte1 & 0x07) << 18) | ((byte2 & 0x3F) << 12) | ((byte3 & 0x3F) << 6) | (byte4 & 0x3F)
+      const b2 = uint8Array[i + 1] & 0xFF
+      const b3 = uint8Array[i + 2] & 0xFF
+      const b4 = uint8Array[i + 3] & 0xFF
+      let code = ((b1 & 0x07) << 18) | ((b2 & 0x3F) << 12) | ((b3 & 0x3F) << 6) | (b4 & 0x3F)
       // 转换为 UTF-16 代理对
       code -= 0x10000
       result += String.fromCharCode(0xD800 + (code >> 10), 0xDC00 + (code & 0x3FF))

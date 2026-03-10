@@ -15,3 +15,24 @@
 /logs
 logs/
 logs/**/*
+
+# Debug files
+/.dbg
+/.tools
+debug_output.html
+get_html.py
+get_logs.sh
+test_buffer.js
+test_highlight.ts
+build.sh
+
+# Temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db

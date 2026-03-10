@@ -5,6 +5,7 @@ import { Document, ReadingProgress } from '../models/Document'
 const KEY_RECENT_DOCS: string = 'recent_documents'
 const KEY_FAVORITE_DOCS: string = 'favorite_documents'
 const KEY_TTS_SETTINGS: string = 'tts_settings'
+const KEY_FIRST_INSTALL: string = 'first_install_done'
 
 // 用户偏好存储服务
 export class StorageService {
@@ -212,6 +213,19 @@ export class StorageService {
     StorageService.pref.putSync(StorageService.KEY_FONT_SIZE, size)
     // 同时更新内存中的值
     AppStorage.setOrCreate('reader_font_size_val', size)
+  }
+
+  // ========== 首次安装检测 ==========
+
+  static isFirstInstall(): boolean {
+    if (StorageService.pref === null) return true
+    const value: string = StorageService.pref.getSync(KEY_FIRST_INSTALL, '') as string
+    return value !== 'true'
+  }
+
+  static setFirstInstallDone(): void {
+    if (StorageService.pref === null) return
+    StorageService.pref.putSync(KEY_FIRST_INSTALL, 'true')
   }
 }
 

@@ -1,4 +1,9 @@
 import { ThemeColors } from '../models/Theme'
+import { fileIo } from '@kit.CoreFileKit'
+import { hilog } from '@kit.PerformanceAnalysisKit'
+import { util } from '@kit.ArkTS'
+
+const DOMAIN = 0x0005
 
 // Token 信息接口
 interface TokenInfo {
@@ -10,7 +15,7 @@ interface TokenInfo {
 export class HTMLGenerator {
   // 生成完整的 HTML 文档
   static generate(htmlContent: string, themeColors: ThemeColors, fontSize: number = 16, lineHeight: number = 1.6): string {
-    console.log('[HTMLGenerator] Generating HTML, content length:', htmlContent.length)
+    hilog.info(DOMAIN, 'testTag', '[HTMLGenerator] Generating HTML, content length: %{public}d', htmlContent.length)
     
     const html = `<!DOCTYPE html>
 <html>
@@ -76,6 +81,22 @@ export class HTMLGenerator {
 </html>`
     
     console.log('[HTMLGenerator] HTML generated successfully')
+
+    // 将 HTML 写入文件以便调试
+    try {
+      const htmlPath = '/data/storage/el2/base/haps/entry/files/shared/debug_output.html'
+      hilog.info(DOMAIN, 'testTag', '[HTMLGenerator] Writing HTML to: %{public}s', htmlPath)
+      const file = fileIo.openSync(htmlPath, fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC)
+      const encoder = new util.TextEncoder()
+      const uint8Array = encoder.encode(html)
+      const buffer = uint8Array.buffer.slice(uint8Array.byteOffset, uint8Array.byteOffset + uint8Array.byteLength)
+      fileIo.writeSync(file.fd, buffer)
+      fileIo.closeSync(file)
+      hilog.info(DOMAIN, 'testTag', '[HTMLGenerator] HTML written to file successfully, size: %{public}d', uint8Array.length)
+    } catch (e) {
+      hilog.error(DOMAIN, 'testTag', '[HTMLGenerator] Failed to write HTML: %{public}s', JSON.stringify(e))
+    }
+
     return html
   }
   
@@ -124,15 +145,21 @@ export class HTMLGenerator {
     
     /* 锚点链接 */
     .anchor-link {
-      float: left;
-      margin-left: -20px;
-      padding-right: 4px;
+      position: absolute;
+      left: -20px;
       color: ${theme.textTertiary};
       text-decoration: none;
       opacity: 0;
       transition: opacity 0.2s;
+      width: 20px;
+      text-align: right;
+      padding-right: 4px;
     }
-    
+
+    h1, h2, h3, h4, h5, h6 {
+      position: relative;
+    }
+
     h1:hover .anchor-link,
     h2:hover .anchor-link,
     h3:hover .anchor-link,
@@ -423,21 +450,24 @@ export class HTMLGenerator {
       return `@__PH_${counter++}__@`
     }
     
-    // 1. 字符串（最先处理）
+    // 1. 字符串和正则表达式（最先处理）
+    // 正则表达式 /pattern/flags
+    html = html.replace(/\/[^\/\n]+\/[gimsuvy]*/g, (m) => addToken(m, 'string'))
     html = html.replace(/"[^"]*"/g, (m) => addToken(m, 'string'))
     html = html.replace(/'[^']*'/g, (m) => addToken(m, 'string'))
-    
+
     // 2. 注释
     html = html.replace(/\/\/.*$/gm, (m) => addToken(m, 'comment'))
     html = html.replace(/\/\*[\s\S]*?\*\//g, (m) => addToken(m, 'comment'))
     
     // 3. 关键字
-    const keywords: string[] = ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while',
+    const keywords: string[] = ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default',
                                'class', 'interface', 'extends', 'implements', 'import', 'export', 'from',
                                'async', 'await', 'new', 'this', 'typeof', 'void', 'number', 'string', 'boolean',
                                'true', 'false', 'null', 'undefined', 'try', 'catch', 'finally', 'throw',
                                'enum', 'type', 'namespace', 'module', 'declare', 'abstract', 'readonly',
-                               'super', 'in', 'of', 'instanceof', 'keyof', 'infer', 'is', 'as']
+                               'super', 'in', 'of', 'instanceof', 'keyof', 'infer', 'is', 'as', 'template',
+                               'break', 'continue', 'debugger', 'with', 'yield', 'static', 'public', 'private', 'protected']
     for (const kw of keywords) {
       const pattern: RegExp = new RegExp(`\\b${kw}\\b`, 'g')
       html = html.replace(pattern, (m) => addToken(m, 'keyword'))
@@ -446,15 +476,18 @@ export class HTMLGenerator {
     // 4. 常量（全大写的标识符，排除 PH_ 开头的占位符）
     html = html.replace(/\b(?!PH_)[A-Z][A-Z_0-9]*\b/g, (m) => addToken(m, 'constant'))
     
-    // 5. 数字 - FIX: 使用(?<!\w)(?!\w)替代\b，支持_分隔符、浮点数、科学计数法和后缀
-    html = html.replace(/(?<!\w)(?!PH_)(0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?[fFLl]?)(?!\w)/g, (m) => addToken(m, 'number'))
-    
-    // 6. 函数名 - FIX: 排除 __PH_ 开头的占位符
+    // 5. 数字 - FIX: 使用(?<!\w)(?!\w)替代\b，支持_分隔符、浮点数、科学计数法
+    html = html.replace(/(?<!\w)(?!PH_)(0[xX][0-9a-fA-F_]+|0[oO][0-7_]+|0[bB][01_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?n?)(?!\w)/g, (m) => addToken(m, 'number'))
+
+    // 6. 装饰器/注解 @decorator
+    html = html.replace(/@(?!__PH_)\w+/g, (m) => addToken(m, 'keyword'))
+
+    // 7. 函数名 - FIX: 排除 __PH_ 开头的占位符
     html = html.replace(/(?!__PH_)\w+(?=\()/g, (m) => addToken(m, 'function'))
-    
+
     return HTMLGenerator.highlightPlaceholder(html, tokens)
   }
-  
+
   // Java 高亮
   private static highlightJava(html: string): string {
     const tokens: TokenInfo[] = []
@@ -475,8 +508,9 @@ export class HTMLGenerator {
     
     // 关键字
     const keywords: string[] = ['public', 'private', 'protected', 'class', 'interface', 'extends', 'implements',
-                               'static', 'final', 'void', 'return', 'if', 'else', 'for', 'while', 'new',
-                               'int', 'String', 'boolean', 'char', 'float', 'double', 'import', 'package',
+                               'static', 'final', 'void', 'return', 'if', 'else', 'for', 'while', 'do', 'switch', 'case', 'default',
+                               'new', 'break', 'continue',
+                               'byte', 'short', 'int', 'long', 'String', 'boolean', 'char', 'float', 'double', 'import', 'package',
                                'true', 'false', 'null', 'try', 'catch', 'finally', 'throw', 'enum',
                                'abstract', 'native', 'strictfp', 'synchronized', 'transient', 'volatile',
                                'super', 'this', 'instanceof', 'goto', 'const']
@@ -489,14 +523,18 @@ export class HTMLGenerator {
     html = html.replace(/\b(?!PH_)[A-Z][A-Z_0-9]*\b/g, (m) => addToken(m, 'constant'))
     
     // 数字 - FIX: 使用(?<!\w)(?!\w)替代\b，支持_分隔符、浮点数、科学计数法和后缀
-    html = html.replace(/(?<!\w)(?!PH_)(0[xX][0-9a-fA-F_]+|0[oO]?[0-7_]+|0[bB][01_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?[fFLl]?)(?!\w)/g, (m) => addToken(m, 'number'))
-    
+    // Python: 0j (虚数), C/C++: 0LL, 0U, 0UL, 0ULL (整数后缀)
+    html = html.replace(/(?<!\w)(?!PH_)(0[xX][0-9a-fA-F_]+|0[oO]?[0-7_]+|0[bB][01_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?([fFLlUu]+|j)?)(?!\w)/g, (m) => addToken(m, 'number'))
+
+    // 注解 @Annotation
+    html = html.replace(/@(?!__PH_)\w+/g, (m) => addToken(m, 'keyword'))
+
     // 函数名 - FIX: 排除 __PH_ 开头的占位符
     html = html.replace(/(?!__PH_)\w+(?=\()/g, (m) => addToken(m, 'function'))
-    
+
     return HTMLGenerator.highlightPlaceholder(html, tokens)
   }
-  
+
   // Python 高亮
   private static highlightPython(html: string): string {
     const tokens: TokenInfo[] = []
@@ -530,11 +568,15 @@ export class HTMLGenerator {
     html = html.replace(/\b(?<!\bTrue|False|None)(?!PH_)[A-Z][A-Z_0-9]*\b/g, (m) => addToken(m, 'constant'))
     
     // 数字 - FIX: 使用(?<!\w)(?!\w)替代\b，支持_分隔符、浮点数、科学计数法和后缀
-    html = html.replace(/(?<!\w)(?!PH_)(0[xX][0-9a-fA-F_]+|0[oO]?[0-7_]+|0[bB][01_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?[fFLl]?)(?!\w)/g, (m) => addToken(m, 'number'))
-    
+    // Python 支持: 123, 123.5, 1e10, 0j, 1j, 1.5j (虚数)
+    html = html.replace(/(?<!\w)(?!PH_)(0[xX][0-9a-fA-F_]+|0[oO]?[0-7_]+|0[bB][01_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?j?)(?!\w)/g, (m) => addToken(m, 'number'))
+
+    // 装饰器 @decorator
+    html = html.replace(/@(?!__PH_)\w+/g, (m) => addToken(m, 'keyword'))
+
     return HTMLGenerator.highlightPlaceholder(html, tokens)
   }
-  
+
   // C/C++ 高亮
   private static highlightC(html: string): string {
     const tokens: TokenInfo[] = []
@@ -560,13 +602,19 @@ export class HTMLGenerator {
     html = html.replace(/\/\/.*$/gm, (m) => addToken(m, 'comment'))
     html = html.replace(/\/\*[\s\S]*?\*\//g, (m) => addToken(m, 'comment'))
     
-    // 关键字
-    const keywords: string[] = ['if', 'else', 'for', 'while', 'return', 'int', 'char', 'float', 'double',
-                               'void', 'struct', 'typedef', 'static', 'const', 'break', 'continue', 'switch',
-                               'case', 'default', 'sizeof', 'NULL', 'true', 'false', 'bool', 'namespace',
-                               'class', 'public', 'private', 'protected', 'template', 'typename',
-                               'extern', 'volatile', 'inline', 'restrict', 'signed', 'unsigned', 'long', 'short',
-                               'enum', 'union', 'auto', 'register', 'goto']
+    // 关键字 - 按长度从长到短排序，确保长的先匹配
+    const keywords: string[] = ['const_cast', 'static_cast', 'dynamic_cast', 'reinterpret_cast', 'static_assert',
+                               'namespace', 'template', 'typename', 'constexpr', 'noexcept', 'alignof', 'alignas',
+                               'char16_t', 'char32_t', 'char8_t', 'wchar_t', 'nullptr',
+                               'signed', 'unsigned', 'volatile', 'restrict', 'explicit', 'virtual', 'override', 'mutable',
+                               'friend', 'delete', 'typeid', 'decltype', 'sizeof', 'struct', 'typedef', 'static',
+                               'const', 'break', 'continue', 'switch', 'return', 'while', 'class', 'public',
+                               'private', 'protected', 'extern', 'inline', 'delete', 'throw', 'catch', 'enum',
+                               'union', 'auto', 'register', 'goto', 'true', 'false', 'bool', 'int', 'char',
+                               'float', 'double', 'void', 'long', 'short', 'if', 'else', 'for', 'do', 'case',
+                               'default', 'new', 'try', 'this', 'NULL']
+    // 按长度从长到短排序
+    keywords.sort((a, b) => b.length - a.length)
     for (const kw of keywords) {
       const pattern: RegExp = new RegExp(`\\b${kw}\\b`, 'g')
       html = html.replace(pattern, (m) => addToken(m, 'keyword'))
@@ -576,11 +624,13 @@ export class HTMLGenerator {
     html = html.replace(/\b(?!PH_)[A-Z][A-Z_0-9]*\b/g, (m) => addToken(m, 'constant'))
     
     // 数字 - FIX: 使用(?<!\w)(?!\w)替代\b，支持_分隔符、浮点数、科学计数法和后缀
-    html = html.replace(/(?<!\w)(?!PH_)(0[xX][0-9a-fA-F_]+|0[oO]?[0-7_]+|0[bB][01_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?[fFLl]?)(?!\w)/g, (m) => addToken(m, 'number'))
-    
+    // C/C++ 支持: 123, 123u, 123U, 123l, 123L, 123ul, 123UL, 123ll, 123LL, 123ull, 123ULL
+    // 浮点数: 1.5, 1.5f, 1.5F, 1.5l, 1.5L, 1e10, 1e10f
+    html = html.replace(/(?<!\w)(?!PH_)(0[xX][0-9a-fA-F_]+|0[oO]?[0-7_]+|0[bB][01_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?([fFLlUu]+)?)(?!\w)/g, (m) => addToken(m, 'number'))
+
     return HTMLGenerator.highlightPlaceholder(html, tokens)
   }
-  
+
   // JSON 高亮
   private static highlightJSON(html: string): string {
     const tokens: TokenInfo[] = []
@@ -591,8 +641,8 @@ export class HTMLGenerator {
       return `@__PH_${counter++}__@`
     }
     
-    // 字符串
-    html = html.replace(/"[^"]*"/g, (m) => addToken(m, 'string'))
+    // 字符串（支持转义引号 \"）
+    html = html.replace(/"(?:[^"\\]|\\.)*"/g, (m) => addToken(m, 'string'))
     
     // 数字 - FIX: 使用(?<!\w)(?!\w)替代\b，支持_分隔符、浮点数、科学计数法和后缀
     html = html.replace(/(?<!\w)(?!PH_)(0[xX][0-9a-fA-F_]+|0[oO]?[0-7_]+|0[bB][01_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?[fFLl]?)(?!\w)/g, (m) => addToken(m, 'number'))
@@ -733,8 +783,8 @@ export class HTMLGenerator {
     // 常量（全大写的标识符，但排除 PH_ 开头的占位符）
     html = html.replace(/\b(?!PH_)[A-Z][A-Z_0-9]*\b/g, (m) => addToken(m, 'constant'))
     
-    // 数字 - FIX: 使用(?<!\w)(?!\w)替代\b，支持_分隔符、浮点数、科学计数法和后缀
-    html = html.replace(/(?<!\w)(?!PH_)(0[xX][0-9a-fA-F_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?[fFLl]?)(?!\w)/g, (m) => addToken(m, 'number'))
+    // 数字 - FIX: 使用(?<!\w)(?!\w)替代\b，支持_分隔符、二进制、十六进制、浮点数、科学计数法和后缀
+    html = html.replace(/(?<!\w)(?!PH_)(0[xX][0-9a-fA-F_]+|0[bB][01_]+|\d[\d_]*\.?\d*([eE][+-]?\d+)?[fFLl]?)(?!\w)/g, (m) => addToken(m, 'number'))
     
     // 注解 @ - FIX: 排除占位符格式 @__PH_
     html = html.replace(/@(?!__PH_)\w+/g, (m) => addToken(m, 'keyword'))

@@ -1,4 +1,5 @@
 import { router } from '@kit.ArkUI'
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { ThemeType, ThemeColors, LightTheme } from '../models/Theme'
 import { ThemeManager } from '../utils/ThemeManager'
 import { FileService } from '../services/FileService'
@@ -29,16 +30,26 @@ struct Index {
 
   private context: Context = getContext(this) as Context
 
+  private static readonly DOMAIN = 0x0001;
+
   aboutToAppear() {
+    hilog.info(Index.DOMAIN, 'testTag', '%{public}s', '[Index] aboutToAppear called')
     ThemeManager.init()
     StorageService.init(this.context)
-    // 初始化字体大小（默认54sp，是原来的3倍）
+    hilog.info(Index.DOMAIN, 'testTag', '%{public}s', '[Index] StorageService.init done')
     const savedSize: number = StorageService.getFontSize()
     AppStorage.setOrCreate('reader_font_size_val', savedSize)
+    hilog.info(Index.DOMAIN, 'testTag', '[Index] font size: %{public}d', savedSize)
     this.loadRecentDocuments()
+    hilog.info(Index.DOMAIN, 'testTag', '%{public}s', '[Index] calling scanDocuments')
     this.scanDocuments()
-    // 处理从其他应用分享打开的文件
+    hilog.info(Index.DOMAIN, 'testTag', '%{public}s', '[Index] scanDocuments called')
     this.handleSharedFile()
+    
+    // 自动打开测试文档用于调试
+    setTimeout(() => {
+      this.openRawFile('complete_test.md')
+    }, 1000)
   }
   
   // 处理从其他应用分享的文件
@@ -71,14 +82,19 @@ struct Index {
 
   // 扫描文档
   async scanDocuments() {
+    hilog.info(Index.DOMAIN, 'testTag', '%{public}s', '[Index] scanDocuments start')
     this.isLoading = true
     this.errorMessage = ''
     try {
-      this.documents = await FileService.scanDirectory()
+      hilog.info(Index.DOMAIN, 'testTag', '[Index] calling FileService.scanDirectory')
+      this.documents = await FileService.scanDirectory(this.context)
+      hilog.info(Index.DOMAIN, 'testTag', '[Index] scanDirectory returned, doc count: %{public}d', this.documents.length)
     } catch (e) {
       this.errorMessage = '扫描文件失败: ' + (e as Error).message
+      hilog.error(Index.DOMAIN, 'testTag', '[Index] scanDocuments error: %{public}s', (e as Error).message)
     } finally {
       this.isLoading = false
+      hilog.info(Index.DOMAIN, 'testTag', '%{public}s', '[Index] scanDocuments done, isLoading: false')
     }
   }
 

@@ -282,6 +282,141 @@ text.replace(/\[([^\]]+)\]\(\s*(#[^)]+)\s*\)/g, '<a href="$2">$1</a>');
 
 ---
 
+## 问题 6: 首次安装时 rawfile 文件未拷贝到沙盒（2026-03-10）
+
+### 现象
+- 首次安装应用后，沙盒目录中没有 `complete_test.md` 文件
+- 应用显示"暂无文档"
+
+### 根本原因
+1. **getContext() 在非组件类中不可用**：FileService 中调用 `getContext().resourceDir` 会报错
+2. **console.log 不输出到 hilog**：导致无法通过 hilog 查看日志
+3. **日志格式错误**：hilog 必须使用 `%{public}s` 等占位符，不能直接拼接字符串
+
+### 修复方案
+
+#### 修复 1: 通过参数传递 Context
+```typescript
+// FileService.ets
+static async scanDirectory(context: Context): Promise<Document[]> {
+  // ...
+  const rawfileDir = context.resourceDir + '/rawfile'
+  // ...
+}
+
+// Index.ets
+this.documents = await FileService.scanDirectory(this.context)
+```
+
+#### 修复 2: 使用 hilog 替代 console.log
+```typescript
+import { hilog } from '@kit.PerformanceAnalysisKit'
+
+const DOMAIN = 0x0002
+
+// 错误
+console.log('[FileService] message: ' + value)
+
+// 正确
+hilog.info(DOMAIN, 'testTag', 'message: %{public}s', value)
+```
+
+#### 修复 3: 修改首次安装检测逻辑
+```typescript
+// 不再使用 StorageService.isFirstInstall()
+// 改为直接检查沙盒中是否有 md 文件
+if (sandboxDocs.length === 0) {
+  // 从 rawfile 拷贝文件
+}
+```
+
+---
+
+## HiLog 调试指南
+
+### 1. 导入模块
+```typescript
+import { hilog } from '@kit.PerformanceAnalysisKit'
+```
+
+### 2. 定义常量
+```typescript
+const DOMAIN = 0x0000  // 日志域，范围 0x0 ~ 0xFFFFF
+const TAG = 'testTag'   // 日志标签
+```
+
+### 3. 输出日志
+```typescript
+// 基本格式
+hilog.info(DOMAIN, TAG, 'message')
+
+// 带参数的格式（必须使用 %{public} 前缀）
+hilog.info(DOMAIN, TAG, '%{public}s', 'hello')
+hilog.info(DOMAIN, TAG, 'count: %{public}d', 42)
+hilog.info(DOMAIN, TAG, 'user: %{public}s, age: %{public}d', 'John', 25)
+```
+
+### 4. 查看日志
+```bash
+# 非阻塞查看所有日志
+hdc shell hilog -x
+
+# 按 tag 过滤
+hdc shell hilog -x -T testTag
+
+# 按 domain 过滤
+hdc shell hilog -x -D 0x0000,0x0001
+
+# 按日志级别过滤
+hdc shell hilog -x -L I
+
+# 查看应用日志
+hdc shell hilog -x -t app
+
+# 组合过滤
+hdc shell hilog -x -T testTag | grep "md_reader"
+```
+
+### 5. 常见错误
+❌ **错误：直接拼接字符串**
+```typescript
+hilog.info(DOMAIN, TAG, 'count: ' + count)  // 可能不显示
+```
+
+✅ **正确：使用占位符**
+```typescript
+hilog.info(DOMAIN, TAG, 'count: %{public}d', count)
+```
+
+❌ **错误：在非组件类中使用 getContext()**
+```typescript
+// FileService.ts 中不能使用
+const dir = getContext().resourceDir  // 会报错
+```
+
+✅ **正确：通过参数传递 context**
+```typescript
+static async scanDirectory(context: Context) {
+  const dir = context.resourceDir
+}
+```
+
+### 6. 调试技巧
+1. **使用不同的 DOMAIN 区分模块**
+   - EntryAbility: 0x0000
+   - Index 页面: 0x0001
+   - FileService: 0x0002
+
+2. **使用统一的 TAG 方便过滤**
+   - 所有模块使用 `'testTag'`
+
+3. **关键位置加日志**
+   - 函数入口/出口
+   - 异步操作前后
+   - 异常捕获处
+
+---
+
 ## 技术债务
 
 1. MDRender 组件被意外重写为纯 Text 组件 → 已恢复 WebView 版本

@@ -71,10 +71,10 @@
 
 ###### 六级标题 (H6)
 
-### 替代语法 H1
+替代语法 H1
 ==============
 
-### 替代语法 H2
+替代语法 H2
 --------------
 
 ---
@@ -1212,11 +1212,11 @@ func swap(a, b string) (string, string) {
 
 ### 带替代文字的图片
 
-![风景图片](https://example.com/landscape.jpg "美丽的山景")
+![图片](https://upload.wikimedia.org/wikipedia/commons/4/47/PNG_transparency_demonstration_1.png "wiki的图片")
 
 ### 图片链接
 
-[![点击访问华为开发者](https://developer.harmonyos.com/resource/image/logo.png)](https://developer.huawei.com)
+[![点击访问华为开发者](https://www.w3.org/assets/logos/w3c-2025-transitional/w3c-2008-public-large.png)](https://www.w3.org/)
 
 ---
 

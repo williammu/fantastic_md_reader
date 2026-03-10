@@ -1,5 +1,6 @@
 import { socket } from '@kit.NetworkKit'
 import { fileIo } from '@kit.CoreFileKit'
+import { util } from '@kit.ArkTS'
 import { SharedFileStorage } from '../entryability/EntryAbility'
 
 // 日志 Socket 服务，用于通过 Socket 提供日志文件访问
@@ -112,53 +113,76 @@ export class LogSocketService {
     console.log('[LogSocket] New connection established')
     
     try {
-      // 读取日志文件
-      let logContent = ''
+      const sandboxDir = LogSocketService.getSandboxDir()
+      
+      // 首先尝试读取 debug_output.html 文件
+      const htmlFilePath = sandboxDir + '/debug_output.html'
+      let htmlBuffer: ArrayBuffer | null = null
+      let htmlFound = false
       
       try {
-        // 首先尝试创建日志文件
-        LogSocketService.createLogFile()
-        
-        // 然后尝试读取应用日志文件
-        const sandboxDir = LogSocketService.getSandboxDir()
-        const logFilePath = sandboxDir + '/app.log'
-        try {
-          logContent = fileIo.readTextSync(logFilePath)
-        } catch (e) {
-          console.log('[LogSocket] Failed to read app.log:', e)
-          logContent = '=== App Log File ===\nFailed to read app.log: ' + e + '\n\n'
-        }
-        
-        // 然后添加系统日志
-        logContent += '=== System Logs ===\n'
-        logContent += '[LogSocket] Server started on port ' + LogSocketService.port + '\n'
-        logContent += '[LogSocket] Connection established\n'
-        logContent += '[LogSocket] Current time: ' + new Date().toISOString() + '\n'
-        
-        // 添加沙盒目录信息
-        try {
-          const files = fileIo.listFileSync(sandboxDir)
-          logContent += '=== Sandbox Files ===\n'
-          logContent += 'Files in shared directory: ' + files.join(', ') + '\n'
-        } catch (e) {
-          logContent += '=== Sandbox Files ===\n'
-          logContent += 'Failed to list sandbox files: ' + e + '\n'
-        }
-        
+        const file = fileIo.openSync(htmlFilePath, fileIo.OpenMode.READ_ONLY)
+        const stat = fileIo.statSync(file.fd)
+        const buffer = new ArrayBuffer(stat.size)
+        fileIo.readSync(file.fd, buffer)
+        fileIo.closeSync(file)
+        htmlBuffer = buffer
+        htmlFound = true
+        console.log('[LogSocket] Successfully read debug_output.html, size:', stat.size)
       } catch (e) {
-        console.log('[LogSocket] Error reading logs:', e)
-        logContent = 'Failed to read logs: ' + e
+        console.log('[LogSocket] Failed to read debug_output.html:', e)
       }
       
-      // 发送日志内容
-      const response = `MD Reader Logs\n================\n${logContent}\n================\n`
+      if (htmlFound && htmlBuffer) {
+        // 直接发送二进制数据
+        conn.send({
+          data: htmlBuffer
+        })
+        console.log('[LogSocket] Sent HTML buffer, size:', htmlBuffer.byteLength)
+      } else {
+        // 读取日志文件作为 fallback
+        let logContent = ''
+        
+        try {
+          LogSocketService.createLogFile()
+          
+          const logFilePath = sandboxDir + '/app.log'
+          try {
+            logContent = fileIo.readTextSync(logFilePath)
+          } catch (e) {
+            console.log('[LogSocket] Failed to read app.log:', e)
+            logContent = '=== App Log File ===\nFailed to read app.log: ' + e + '\n\n'
+          }
+          
+          logContent += '=== System Logs ===\n'
+          logContent += '[LogSocket] Server started on port ' + LogSocketService.port + '\n'
+          logContent += '[LogSocket] Connection established\n'
+          logContent += '[LogSocket] Current time: ' + new Date().toISOString() + '\n'
+          
+          try {
+            const files = fileIo.listFileSync(sandboxDir)
+            logContent += '=== Sandbox Files ===\n'
+            logContent += 'Files in shared directory: ' + files.join(', ') + '\n'
+          } catch (e) {
+            logContent += '=== Sandbox Files ===\n'
+            logContent += 'Failed to list sandbox files: ' + e + '\n'
+          }
+          
+        } catch (e) {
+          console.log('[LogSocket] Error reading logs:', e)
+          logContent = 'Failed to read logs: ' + e
+        }
+        
+        const response = `MD Reader Logs\n================\n${logContent}\n================\n`
+        
+        // 将字符串转换为 UTF-8 字节
+        const encoder = new util.TextEncoder()
+        const logBuffer = encoder.encode(response).buffer
+        conn.send({
+          data: logBuffer
+        })
+      }
       
-      // 发送数据
-      conn.send({
-        data: response
-      })
-      
-      // 关闭连接
       conn.close()
       console.log('[LogSocket] Connection closed')
       
