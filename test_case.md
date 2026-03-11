@@ -4,6 +4,72 @@
 
 ---
 
+## 已修复问题总结
+
+### 1. 引用块中的代码块显示多余 > 符号（已修复）
+- **问题**: 引用块内部的代码块每行前都显示多余的 `>` 字符
+- **修复方案**:
+  - 调整了 MarkdownParser.parse() 方法中的解析顺序，先处理 parseBlockquotes 再处理外部代码块提取
+  - 修复了 parseQuoteContent() 方法，正确合并引用块内部保存的 tags 和 blocks 到外部数组
+  - 重新计算占位符索引并替换，确保内容正确恢复
+- **验证**: debug_output.html:1477-1485，引用块内的代码块现在无多余 > 字符
+
+### 2. 引用式链接未正确解析（已修复）
+- **问题**: 引用式链接定义（[id]: url）和使用（[text][id]）未被解析
+- **修复方案**:
+  - 在 MarkdownParser.parse() 中添加解析引用式链接定义的代码
+  - 添加静态变量 `currentLinkReferences` 存储链接定义
+  - 在 parseInlineElements() 中添加解析引用式链接使用的代码
+- **验证**: debug_output.html:1522-1524，引用式链接现在正确显示为可点击的链接
+
+### 3. 嵌套方括号链接解析（已修复）
+- **问题**: 链接文本包含方括号时无法正确解析
+- **修复方案**: 新增 parseLinksWithNestedBrackets() 方法，使用平衡括号算法正确匹配括号
+- **测试位置**: test_case.md:7.8, complete_test.md:嵌套方括号链接
+
+### 4. override 关键字高亮（已修复）
+- **问题**: Java、Swift、C/C++、Kotlin 的 override 关键字未高亮
+- **修复方案**: 在各语言的关键字列表中添加 override 关键字
+
+### 5. C/C++ 预处理指令 #else 和 #elif 高亮（已修复）
+- **问题**: #else 和 #elif 预处理指令的井号颜色不一致
+- **修复方案**: 添加 #else 和 #elif 的完整高亮支持
+
+### 6. Go 常量高亮（已修复）
+- **问题**: Go 的 const 常量未高亮
+- **修复方案**: 常量改为全大写（PI, MAX_INT, SUNDAY 等）并正确高亮
+
+### 7. 缩进代码块解析（已修复）
+- **问题**: 缩进代码块与嵌套列表冲突
+- **修复方案**: 调整解析顺序，在列表解析之后再解析缩进代码块
+
+### 8. Python 语法高亮增强（已修复）
+- **问题**: Python 的 `var` 关键字未高亮、类型注解（如 `int`）未高亮、`__init__` 未高亮
+- **修复方案**:
+  - 在 Python 关键字列表中添加 `var`
+  - 在 Python 关键字列表中添加 `__init__`
+  - 添加完整的内置类型和 typing 模块类型高亮支持（int, str, float, bool, list, dict, tuple, set, Callable, Iterable, Iterator, Optional, Union, Any 等）
+
+### 9. 目录浮层跳转无效（已修复）
+- **问题**: 点击目录浮层中的项目无法跳转到对应标题位置
+- **修复方案**:
+  - 在 MDRender 组件中添加 webController 控制 WebView
+  - 使用 @Watch 装饰器监听 scrollToAnchor 属性变化
+  - 通过执行 JavaScript 代码调用 element.scrollIntoView() 实现平滑滚动
+  - 添加 pageLoaded 状态确保页面加载完成后再执行滚动
+
+### 10. 列表前面偶尔出现灰色井号（已修复）
+- **问题**: 某些列表项被错误地解析为标题，导致前面出现灰色的锚点链接符号（#）
+- **修复方案**:
+  - 重写 parseHeaders 方法，使用逐行处理代替正则表达式全局匹配
+  - 在处理每行时检查是否是占位符（___HTML_TAG_xxx___ 或 ___CODE_BLOCK_xxx___）
+  - 如果是占位符则直接保留，不进行标题解析
+  - 分别处理替代语法标题（=== 和 ---）和标准 # 标题
+
+---
+
+---
+
 ## 目录
 
 1. [基础文本元素测试](#1-基础文本元素测试)
@@ -72,6 +138,24 @@
   - [ ] `\\` 显示为 `\`
   - [ ] `\<` 和 `\>` 显示为 `<` 和 `>`
 
+### 1.8 HTML 实体和数字字符引用
+- **检查项**:
+  - [ ] `&amp;` 显示为 `&`
+  - [ ] `&lt;` 显示为 `<`
+  - [ ] `&gt;` 显示为 `>`
+  - [ ] `&quot;` 显示为 `"`
+  - [ ] `&copy;` 显示为 `©`
+  - [ ] `&nbsp;` 显示为不换行空格
+  - [ ] 数字字符引用 `&#65;` 显示为 `A`
+  - [ ] 十六进制数字引用 `&#x41;` 显示为 `A`
+
+### 1.9 硬换行和软换行
+- **检查项**:
+  - [ ] 行尾两个空格生成硬换行 `<br>`
+  - [ ] 行尾反斜杠 `\` 生成硬换行 `<br>`
+  - [ ] 普通软换行不生成 `<br>`，只显示为空格
+  - [ ] 段落内的多个软换行合并为单个空格
+
 ---
 
 ## 2. 标题元素测试
@@ -126,17 +210,18 @@
 
 ### 3.2 Java 语法高亮
 - **检查项**:
-  - [ ] 关键字高亮（public, private, protected, class, interface, extends, implements, static, final, void, return, if, else, for, while, do, switch, case, default, new, break, continue, byte, short, int, long, String, boolean, char, float, double, import, package, true, false, null, try, catch, finally, throw, enum, abstract, native, strictfp, synchronized, transient, volatile, super, this, instanceof, goto, const）
+  - [ ] 关键字高亮（public, private, protected, class, interface, extends, implements, static, final, void, return, if, else, for, while, do, switch, case, default, new, break, continue, byte, short, int, long, String, boolean, char, float, double, import, package, true, false, null, try, catch, finally, throw, enum, abstract, native, strictfp, synchronized, transient, volatile, super, this, instanceof, goto, const, override）
   - [ ] 字符串高亮（双引号、单引号字符）
   - [ ] 数字高亮（整数、长整型 0L、浮点数、十六进制）
   - [ ] 注释高亮（// 单行注释、/* */ 多行注释）
   - [ ] 注解高亮（@Override, @Deprecated）
   - [ ] 函数名高亮
-  - [ ] 常量高亮（全大写标识符）
+  - [ ] 常量高亮（全大写标识符，包括 enum 常量）
 
 ### 3.3 Python 语法高亮
 - **检查项**:
-  - [ ] 关键字高亮（def, class, return, if, elif, else, for, while, in, not, and, or, import, from, as, try, except, finally, raise, pass, break, continue, True, False, None, self, lambda, yield, async, await, with, global, nonlocal, del, assert, match, case）
+  - [ ] 关键字高亮（def, class, var, return, if, elif, else, for, while, in, not, and, or, import, from, as, try, except, finally, raise, pass, break, continue, True, False, None, self, lambda, yield, async, await, with, global, nonlocal, del, assert, match, case, __init__）
+  - [ ] 类型注解和内置类型高亮（int, str, float, bool, list, dict, tuple, set, frozenset, bytes, bytearray, memoryview, complex, object, type, NoneType, Callable, Iterable, Iterator, Generator, Sequence, Mapping, MutableMapping, List, Dict, Tuple, Set, Optional, Union, Any, Literal, Protocol, NamedTuple, TypedDict, Final, ClassVar, InitVar, Self, TypeVar, Generic）
   - [ ] 字符串高亮（单引号、双引号、三引号多行字符串）
   - [ ] 数字高亮（整数、浮点数、虚数 0j、十六进制、八进制、二进制）
   - [ ] 注释高亮（# 单行注释）
@@ -145,22 +230,22 @@
 
 ### 3.4 C / C++ 语法高亮
 - **检查项**:
-  - [ ] 预处理指令高亮（#include, #define, #ifdef, #ifndef, #endif）
+  - [ ] 预处理指令高亮（#include, #define, #ifdef, #ifndef, #elif, #else, #endif）
   - [ ] 关键字高亮（const_cast, static_cast, dynamic_cast, reinterpret_cast, static_assert, namespace, template, typename, constexpr, noexcept, alignof, alignas, char16_t, char32_t, char8_t, wchar_t, nullptr, signed, unsigned, volatile, restrict, explicit, virtual, override, mutable, friend, delete, typeid, decltype, sizeof, struct, typedef, static, const, break, continue, switch, return, while, class, public, private, protected, extern, inline, throw, catch, enum, union, auto, register, goto, true, false, bool, int, char, float, double, void, long, short, if, else, for, do, case, default, new, try, this, NULL）
   - [ ] 字符串高亮（双引号、单引号字符）
   - [ ] 数字高亮（整数、长整型 0L, 0LL, 无符号 0U, 0UL, 0ULL、浮点数、十六进制、二进制）
   - [ ] 注释高亮（// 单行注释、/* */ 多行注释）
-  - [ ] 常量高亮（全大写标识符）
+  - [ ] 常量高亮（全大写标识符，包括 enum 常量）
 
 ### 3.5 Swift 语法高亮
 - **检查项**:
-  - [ ] 关键字高亮（import, var, let, func, class, struct, enum, protocol, extension, public, private, internal, fileprivate, open, static, final, mutating, lazy, weak, unowned, return, if, else, guard, switch, case, default, for, while, repeat, in, where, break, continue, fallthrough, self, Self, init, deinit, subscript, operator, precedence, nil, true, false, try, catch, throw, throws, rethrows, async, await, associatedtype, typealias, defer, do, Int, String, Double, Float, Bool, Array, Dictionary, Optional, some, any, is, as, Hashable, Codable, Sendable）
+  - [ ] 关键字高亮（import, var, let, func, class, struct, enum, protocol, extension, public, private, internal, fileprivate, open, static, final, mutating, lazy, weak, unowned, override, return, if, else, guard, switch, case, default, for, while, repeat, in, where, break, continue, fallthrough, self, Self, init, deinit, subscript, operator, precedence, nil, true, false, try, catch, throw, throws, rethrows, async, await, associatedtype, typealias, defer, do, Int, String, Double, Float, Bool, Array, Dictionary, Optional, some, any, is, as, Hashable, Codable, Sendable）
   - [ ] 字符串高亮（双引号、三引号多行字符串）
   - [ ] 数字高亮（整数、浮点数、十六进制、八进制、二进制）
   - [ ] 注释高亮（// 单行注释、/* */ 多行注释）
   - [ ] 属性包装器高亮（@）
   - [ ] 函数名高亮
-  - [ ] 常量高亮（全大写标识符）
+  - [ ] 常量高亮（全大写标识符，包括 enum 常量）
 
 ### 3.6 Kotlin 语法高亮
 - **检查项**:
@@ -170,7 +255,7 @@
   - [ ] 注释高亮（// 单行注释、/* */ 多行注释）
   - [ ] 注解高亮（@）
   - [ ] 函数名高亮
-  - [ ] 常量高亮（全大写标识符）
+  - [ ] 常量高亮（全大写标识符，包括 enum 常量）
 
 ### 3.7 Go 语法高亮
 - **检查项**:
@@ -179,7 +264,8 @@
   - [ ] 数字高亮（整数、浮点数、十六进制、八进制、二进制）
   - [ ] 注释高亮（// 单行注释、/* */ 多行注释）
   - [ ] 函数名高亮
-  - [ ] 常量高亮（全大写标识符）
+  - [ ] 常量高亮（全大写标识符，包括 const 声明的常量）
+  - [ ] iota 常量正确高亮
 
 ### 3.8 JSON 语法高亮
 - **检查项**:
@@ -199,7 +285,13 @@
 ### 3.10 缩进代码块
 - **检查项**:
   - [ ] 4 个空格缩进的内容被识别为代码块
-  - [ ] 代码块有正确的样式
+  - [ ] 1个 tab 缩进的内容被识别为代码块
+  - [ ] 代码块使用 &lt;pre&gt; 和 &lt;code&gt; 标签
+  - [ ] 代码块有背景色
+  - [ ] 代码块有内边距
+  - [ ] 代码块有圆角
+  - [ ] 代码块支持横向滚动
+  - [ ] 缩进代码块的样式与三个反引号代码块一致
 
 ---
 
@@ -285,9 +377,11 @@
 ### 5.3 嵌套引用
 - **检查项**:
   - [ ] 使用嵌套的 `<blockquote>` 标签
-  - [ ] 内层引用边框颜色不同
-  - [ ] 三层嵌套都有不同的边框颜色
+  - [ ] 第一层引用使用主色边框
+  - [ ] 第二层引用使用浅主色边框
+  - [ ] 第三层引用使用三级文本色边框
   - [ ] 嵌套缩进正确
+  - [ ] 多层嵌套的边框颜色层次分明
 
 ### 5.4 引用中的列表
 - **检查项**:
@@ -396,6 +490,13 @@
   - [ ] 点击图片能跳转
   - [ ] 图片和链接都正确显示
 
+### 7.8 嵌套方括号链接
+- **检查项**:
+  - [ ] 链接文本中包含方括号时能正确解析，如 `[link [with] brackets](url)`
+  - [ ] 多层嵌套方括号能正确解析，如 `[outer [inner [deep]]](url)`
+  - [ ] 使用平衡括号算法正确匹配括号
+  - [ ] 链接跳转功能正常
+
 ---
 
 ## 8. 分隔线与混合内容测试
@@ -414,13 +515,21 @@
   - [ ] HTML 样式正确应用
   - [ ] HTML 内容正确显示
 
-### 8.3 细节折叠
+### 8.3 HTML 块
+- **检查项**:
+  - [ ] 完整 HTML 块（如 `<div>`, `<p>`, `<pre>` 等）正确显示
+  - [ ] 行内 HTML 标签（如 `<span>`, `<b>`, `<i>`）正确显示
+  - [ ] HTML 块内的 Markdown 内容不被解析
+  - [ ] 自闭合标签正确处理（如 `<br/>`, `<hr/>`）
+  - [ ] HTML 注释 `<!-- comment -->` 正确显示或隐藏
+
+### 8.4 细节折叠
 - **检查项**:
   - [ ] `<details>` 和 `<summary>` 标签正确保留
   - [ ] 折叠功能正常
   - [ ] 展开/折叠样式正确
 
-### 8.4 特殊字符与表情
+### 8.5 特殊字符与表情
 - **检查项**:
   - [ ] 特殊符号正确显示（©, ®, ™, €, £, ¥, °C）
   - [ ] Emoji 表情正确显示
@@ -488,6 +597,8 @@
 | 1.5 删除线 | ⏳ | |
 | 1.6 行内代码 | ⏳ | |
 | 1.7 转义字符 | ⏳ | |
+| 1.8 HTML 实体和数字字符引用 | ⏳ | |
+| 1.9 硬换行和软换行 | ⏳ | |
 | 2.1 各级标题 | ⏳ | |
 | 2.2 替代语法标题 | ⏳ | |
 | 2.3 标题锚点链接 | ⏳ | |
@@ -514,22 +625,24 @@
 | 5.3 嵌套引用 | ⏳ | |
 | 5.4 引用中的列表 | ⏳ | |
 | 5.5 引用中的粗体 | ⏳ | |
-| 5.6 引用中的代码块 | ⏳ | |
+| 5.6 引用中的代码块 | ✅ | 已修复无多余 > 符号 |
 | 6.1 基础表格 | ⏳ | |
 | 6.2 对齐表格 | ⏳ | |
 | 6.3 表格中行内元素 | ⏳ | |
 | 6.4 宽表格滚动 | ⏳ | |
 | 7.1 行内链接 | ⏳ | |
 | 7.2 带标题链接 | ⏳ | |
-| 7.3 引用式链接 | ⏳ | |
+| 7.3 引用式链接 | ✅ | 已正确解析并显示为链接 |
 | 7.4 自动链接 | ⏳ | |
 | 7.5 图片引用 | ⏳ | |
 | 7.6 带替代文字图片 | ⏳ | |
 | 7.7 图片链接 | ⏳ | |
+| 7.8 嵌套方括号链接 | ✅ | 已实现平衡括号算法 |
 | 8.1 分隔线 | ⏳ | |
 | 8.2 HTML混合 | ⏳ | |
-| 8.3 细节折叠 | ⏳ | |
-| 8.4 特殊字符表情 | ⏳ | |
+| 8.3 HTML块 | ⏳ | |
+| 8.4 细节折叠 | ⏳ | |
+| 8.5 特殊字符表情 | ⏳ | |
 | 9.1 自动生成锚点 | ⏳ | |
 | 9.2 自定义锚点 | ⏳ | |
 | 10.1 列表中的代码 | ⏳ | |
@@ -544,4 +657,4 @@
 - ❌ 失败
 - ⚠️ 部分通过
 
-*最后更新: 2026-03-10*
+*最后更新: 2026-03-11*

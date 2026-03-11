@@ -1,15 +1,12 @@
 import { router } from '@kit.ArkUI'
 import { ThemeColors, LightTheme } from '../models/Theme'
 import { MDRender } from '../components/MDRender/MDRender'
-import { TTSControlBar } from '../components/TTSControl/TTSControlBar'
-import { ttsService, TTSState } from '../services/TTSService'
-import { ParagraphSplitter } from '../utils/ParagraphSplitter'
 import { FileService } from '../services/FileService'
 import { fileIo } from '@kit.CoreFileKit'
-import { buffer, util } from '@kit.ArkTS'
+import { buffer } from '@kit.ArkTS'
 import { SharedFileStorage } from '../entryability/EntryAbility'
 import { MarkdownParser, TocItem } from '../utils/MarkdownParser'
-import { promptAction } from '@kit.ArkUI'
+import { StorageService } from '../utils/StorageService'
 import { hilog } from '@kit.PerformanceAnalysisKit'
 
 const DOMAIN = 0x0004
@@ -91,11 +88,10 @@ struct ReaderPage {
   @State content: string = ''
   @State fileName: string = '未命名'
   @State isLoading: boolean = true
-  @State showTTS: boolean = false
-  @State ttsState: TTSState = TTSState.IDLE
   @State showToc: boolean = false  // 是否显示目录面板
   @State tocList: TocItem[] = []   // 目录列表
   @State currentAnchor: string = '' // 当前要跳转的锚点
+  private tocScroller: Scroller = new Scroller() // 目录滚动控制器
 
   private fileUri: string = ''
   private sandboxPath: string = ''
@@ -195,24 +191,6 @@ struct ReaderPage {
     } finally {
       this.isLoading = false
     }
-
-    // 准备朗读段落（添加错误处理）
-    try {
-      const paragraphs = ParagraphSplitter.split(this.content)
-      console.log(`文档分割为 ${paragraphs.length} 个段落`)
-    } catch (splitError) {
-      console.error('[ReaderPage] Failed to split paragraphs:', splitError)
-    }
-
-    // 监听 TTS 状态
-    try {
-      ttsService.onStateChange((state: TTSState) => {
-        this.ttsState = state
-        this.showTTS = state !== TTSState.IDLE
-      })
-    } catch (ttsError) {
-      console.error('[ReaderPage] Failed to set up TTS:', ttsError)
-    }
   }
 
   // 从 rawfile 读取文件内容
@@ -285,12 +263,6 @@ struct ReaderPage {
     }
   }
 
-  // 开始朗读
-  private startTTS() {
-    ttsService.start(this.content)
-    this.showTTS = true
-  }
-
   build() {
     Column() {
       // 顶部导航栏
@@ -326,19 +298,14 @@ struct ReaderPage {
               dragBar: true,
               showClose: true,
               onDisappear: () => {
+                // 保存当前滚动偏移量
+                const currentOffset = this.tocScroller.currentOffset().yOffset
+                StorageService.saveTocScrollOffset(currentOffset)
+                hilog.info(DOMAIN, 'testTag', '[ReaderPage] TOC bindSheet onDisappear, offset saved: %{public}d', currentOffset)
                 this.showToc = false
               }
             })
         }
-
-        // 朗读按钮
-        Button('🔊')
-          .fontSize(20)
-          .backgroundColor(Color.Transparent)
-          .fontColor(this.themeColors.primary)
-          .onClick(() => {
-            this.startTTS()
-          })
       }
       .width('100%')
       .height(56)
@@ -364,24 +331,17 @@ struct ReaderPage {
           content: this.content,
           themeColors: this.themeColors,
           fontSize: this.fontSize,
-          enableHighlight: this.showTTS,
           scrollToAnchor: this.currentAnchor
         })
         .layoutWeight(1)
-      }
-
-      // 朗读控制条
-      if (this.showTTS) {
-        TTSControlBar({
-          themeColors: this.themeColors
-        })
       }
     }
     .width('100%')
     .height('100%')
     .backgroundColor(this.themeColors.background)
+    // 触摸指示器 - 用于调试显示点击位置
   }
-  
+
   // 目录面板
   @Builder
   TocSheet() {
@@ -392,7 +352,7 @@ struct ReaderPage {
         .fontColor(this.themeColors.textPrimary)
         .margin({ top: 16, bottom: 12, left: 16, right: 16 })
       
-      List({ space: 0 }) {
+      List({ scroller: this.tocScroller, space: 0 }) {
         ForEach(this.tocList, (item: TocItem) => {
           ListItem() {
             Row() {
@@ -422,6 +382,24 @@ struct ReaderPage {
       .width('100%')
       .layoutWeight(1)
       .backgroundColor(this.themeColors.background)
+      .onReachEnd(() => {
+        console.log(`[ReaderPage] TOC list reached end`)
+      })
+      .onScrollIndex((start: number, end: number) => {
+        const currentOffset = this.tocScroller.currentOffset().yOffset
+        hilog.info(DOMAIN, 'testTag', '[ReaderPage] TOC onScrollIndex triggered, start=%{public}d, end=%{public}d, offset=%{public}d', start, end, currentOffset)
+        // 不再在这里保存偏移量，改在 onDisappear 中保存
+        // 这样可以避免初始化时的滚动事件覆盖已保存的偏移量
+      })
+      .onAppear(() => {
+        const savedOffset = StorageService.getTocScrollOffset()
+        hilog.info(DOMAIN, 'testTag', '[ReaderPage] TOC List onAppear called, savedOffset=%{public}d', savedOffset)
+        // 延迟滚动到保存的位置
+        setTimeout(() => {
+          hilog.info(DOMAIN, 'testTag', '[ReaderPage] TOC List scrolling to offset: %{public}d', savedOffset)
+          this.tocScroller.scrollTo({ xOffset: 0, yOffset: savedOffset, animation: false })
+        }, 100)
+      })
     }
     .width('100%')
     .height('100%')

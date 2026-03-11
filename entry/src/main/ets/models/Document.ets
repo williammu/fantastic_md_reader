@@ -6,8 +6,6 @@ export interface Document {
   source: 'local' | 'cloud'  // 来源
   lastOpenTime: number // 最后打开时间戳
   readingPosition: number    // 阅读字符偏移量
-  ttsParagraph: number       // 朗读段落索引
-  ttsProgress: number        // 朗读进度 0-100
   isFavorite: boolean        // 是否收藏
   tags: string[]             // 标签列表
   size: number               // 文件大小（字节）
@@ -18,8 +16,6 @@ export interface Document {
 export interface ReadingProgress {
   documentId: string   // 文档ID
   charOffset: number   // 字符位置
-  ttsParagraph: number // 朗读段落
-  ttsProgress: number  // 朗读进度 0-100
   updatedAt: number    // 更新时间
 }
 
@@ -34,8 +30,6 @@ export function createDocument(path: string, name: string, size: number, modifyT
     source: 'local',
     lastOpenTime: Date.now(),
     readingPosition: 0,
-    ttsParagraph: 0,
-    ttsProgress: 0,
     isFavorite: false,
     tags: [],
     size,

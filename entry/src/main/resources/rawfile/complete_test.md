@@ -55,6 +55,25 @@
 
 特殊字符：\\ 反斜杠、\<尖括号\>、\& 与号。
 
+### HTML 实体和数字字符引用
+
+HTML 实体：&amp; &lt; &gt; &quot; &copy; &nbsp;
+
+数字字符引用：&#65; &#x41;
+
+### 硬换行和软换行
+
+这是使用两个空格的硬换行：  
+第一行，第二行，第三行。
+
+这是使用反斜杠的硬换行：\
+第一行，第二行，第三行。
+
+这是普通软换行（段落内的换行）：
+第一行
+第二行
+第三行
+
 ---
 
 ## 标题元素
@@ -246,6 +265,16 @@ public class TestClass extends BaseClass implements InterfaceA, InterfaceB {
         ACTIVE, INACTIVE, PENDING
     }
     
+    // Class with inheritance and override
+    class BaseClass {
+        public void doSomething() {}
+    }
+    
+    class SubClass extends BaseClass {
+        @Override
+        public void doSomething() {}
+    }
+    
     // Annotation
     @Override
     @Deprecated
@@ -403,8 +432,10 @@ f"f-string"
 
 #ifdef DEBUG
     #define LOG(msg) printf("%s\n", msg)
-#else
+#elif defined(RELEASE)
     #define LOG(msg)
+#else
+    #define LOG(msg) printf("Default: %s\n", msg)
 #endif
 
 // Typedef and struct
@@ -412,6 +443,18 @@ typedef struct {
     int x;
     int y;
 } Point;
+
+// Class with virtual function and override
+class Base {
+public:
+    virtual void doSomething() {}
+    virtual ~Base() {}
+};
+
+class Derived : public Base {
+public:
+    void doSomething() override {}
+};
 
 // Enum
 typedef enum {
@@ -534,6 +577,20 @@ class DerivedClass: BaseClass {
     
     override func method() {
         super.method()
+    }
+}
+
+// Another class with override
+class AnotherBase {
+    func doWork() {}
+    var value: Int = 0
+}
+
+class AnotherDerived: AnotherBase {
+    override func doWork() {}
+    override var value: Int {
+        get { 10 }
+        set {}
     }
 }
 
@@ -809,20 +866,20 @@ import (
 	"strings"
 )
 
-// Constants
+// Constants (all uppercase for testing)
 const (
-	Pi     = 3.14159
-	MaxInt = int(^uint(0) >> 1)
+	PI     = 3.14159
+	MAX_INT = int(^uint(0) >> 1)
 )
 
 const (
-	Sunday = iota
-	Monday
-	Tuesday
-	Wednesday
-	Thursday
-	Friday
-	Saturday
+	SUNDAY = iota
+	MONDAY
+	TUESDAY
+	WEDNESDAY
+	THURSDAY
+	FRIDAY
+	SATURDAY
 )
 
 // Variables
@@ -1218,6 +1275,16 @@ func swap(a, b string) (string, string) {
 
 [![点击访问华为开发者](https://www.w3.org/assets/logos/w3c-2025-transitional/w3c-2008-public-large.png)](https://www.w3.org/)
 
+### 嵌套方括号链接
+
+测试嵌套方括号链接：
+
+- 单层嵌套：[这是 [嵌套方括号] 的链接](https://example.com)
+- 多层嵌套：[外层 [内层 [最内层] 链接](https://example.com)
+- 带括号的文本：[链接文本 (包含括号)](https://example.com)
+- 复杂嵌套：[复杂 [示例] (包含) 混合](https://example.com)
+- 代码风格的嵌套：[`[code]` 也支持](https://example.com)
+
 ---
 
 ## 分隔线与混合内容
@@ -1238,6 +1305,22 @@ ___
   <p>这是一个 HTML div 块</p>
   <p>包含多个段落</p>
 </div>
+
+### HTML 块
+
+完整 HTML 块：
+
+<div class="test-container">
+  <h4>HTML 标题</h4>
+  <p>这是 <strong>粗体</strong> 和 <em>斜体</em> 文本</p>
+  <pre><code>HTML 块内的 Markdown **不会**被解析</code></pre>
+</div>
+
+行内 HTML 标签：这是 <b>HTML 粗体</b> 和 <i>HTML 斜体</i> 文本。
+
+自闭合标签：<br/> 换行，<hr/> 分割线。
+
+HTML 注释：<!-- 这是 HTML 注释 -->
 
 ### 细节折叠
 

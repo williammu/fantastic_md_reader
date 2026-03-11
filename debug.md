@@ -1362,3 +1362,244 @@ FileService.readFile(getContext(this))
 3. LogSocketService 调试代码需清理
 4. 考虑使用成熟的 Markdown 解析库（如 marked.js）替代自研解析器
 5. **UTF-8 中文解码问题需要在真机上验证**
+
+---
+
+## 八、UI 自动化测试方法（2026-03-11）
+
+### 8.1 核心工具：`hdc shell uitest`
+
+HarmonyOS 提供了 `uitest` 命令行工具用于 UI 自动化测试，无需编写测试代码即可直接执行点击、滑动等操作。
+
+#### 基本命令格式
+```bash
+hdc shell uitest uiInput <action> [parameters]
+```
+
+### 8.2 点击操作
+
+#### 命令
+```bash
+hdc shell uitest uiInput click <x> <y>
+```
+
+#### 关键坐标记录（基于 1260x2844 屏幕）
+
+| 操作 | 坐标 | 说明 |
+|------|------|------|
+| 打开文件 | (630, 350) | 点击 complete_test.md 文件项 |
+| **目录按钮** | **(1170, 180)** | ☰ 按钮，**注意 y 坐标要在状态栏下方** |
+| 关闭按钮 | (1080, 530) | bindSheet 右上角的 X |
+
+#### ⚠️ 重要提示：状态栏高度问题
+
+**现象**：点击目录按钮没有反应
+
+**原因**：状态栏高度约 100-150px，y 坐标小于 150 会点到状态栏而不是应用内按钮
+
+**解决**：
+```bash
+# ❌ 错误：y=110 或 120 在状态栏区域
+hdc shell uitest uiInput click 1170 110  # 触发状态栏点击事件
+
+# ✅ 正确：y=180 在应用标题栏区域
+hdc shell uitest uiInput click 1170 180  # 正确触发目录按钮
+```
+
+### 8.3 滑动操作
+
+#### 命令
+```bash
+hdc shell uitest uiInput swipe <from_x> <from_y> <to_x> <to_y> <speed>
+```
+
+#### 目录浮层内滑动示例
+```bash
+# 在目录浮层内向上滑动（内容向下滚动）
+# 浮层在屏幕底部，高度 400，y 范围约 2444-2844
+hdc shell uitest uiInput swipe 630 2200 630 1800 600
+```
+
+**参数说明**：
+- `from_x, from_y`：滑动起始坐标
+- `to_x, to_y`：滑动结束坐标
+- `speed`：滑动速度（200-40000，单位 px/s）
+
+### 8.4 完整测试流程示例
+
+#### 场景：测试目录浮层滚动偏移量
+
+```bash
+# 步骤 1: 打开目录浮层
+echo "=== 步骤1: 打开目录浮层 ==="
+hdc shell uitest uiInput click 1170 180
+sleep 1
+
+# 步骤 2: 在目录浮层中滚动
+echo "=== 步骤2: 在目录浮层中滚动 ==="
+hdc shell uitest uiInput swipe 630 2200 630 1800 600
+sleep 1
+
+# 步骤 3: 关闭目录浮层
+echo "=== 步骤3: 关闭目录浮层 ==="
+hdc shell uitest uiInput click 1080 530
+sleep 1
+
+# 步骤 4: 重新打开目录浮层（验证偏移量是否保留）
+echo "=== 步骤4: 重新打开目录浮层 ==="
+hdc shell uitest uiInput click 1170 180
+```
+
+### 8.5 截图验证
+
+每次操作后截图验证：
+
+```bash
+# 截图并拉取到本地
+hdc shell snapshot_display -i 0 -f /data/local/tmp/screen.jpeg
+hdc file recv /data/local/tmp/screen.jpeg /tmp/screen.jpeg
+
+# 清理截图
+rm -f /tmp/screen.jpeg
+hdc shell rm -f /data/local/tmp/screen.jpeg
+```
+
+### 8.6 调试技巧
+
+#### 1. 查看点击是否生效
+```bash
+# 点击后查看日志
+hdc shell uitest uiInput click 1170 180
+hdc shell hilog -x | grep -i "click\|statusBar"
+```
+
+#### 2. 验证坐标位置
+```bash
+# 连续点击不同位置，观察屏幕变化
+hdc shell uitest uiInput click 1170 110  # 状态栏区域
+hdc shell uitest uiInput click 1170 180  # 标题栏区域
+```
+
+#### 3. 批量测试坐标
+```bash
+# 测试多个坐标点
+for y in 100 150 180 200 250; do
+    echo "Testing y=$y"
+    hdc shell uitest uiInput click 1170 $y
+    sleep 1
+done
+```
+
+### 8.7 常见问题
+
+#### 问题 1: 点击没有反应
+**排查**：
+1. 检查坐标是否在状态栏区域（y < 150）
+2. 检查应用是否在前台
+3. 检查按钮是否可见（被其他元素遮挡）
+
+#### 问题 2: 滑动没有效果
+**排查**：
+1. 检查滑动区域是否在可滚动组件内
+2. 检查滑动距离是否足够（建议 > 200px）
+3. 检查滑动速度是否合适（建议 600-1000）
+
+#### 问题 3: 坐标不准确
+**解决**：
+1. 使用截图工具测量准确坐标
+2. 考虑不同设备的屏幕分辨率差异
+3. 使用相对坐标（百分比）而非绝对坐标
+
+### 8.8 与 ArkTest 框架的关系
+
+| 方式 | 适用场景 | 优点 | 缺点 |
+|------|----------|------|------|
+| **uitest 命令** | 快速调试、单次测试 | 无需编写代码、即时执行 | 无法复用、难以维护 |
+| **ArkTest 框架** | 自动化测试、CI/CD | 可复用、可断言、可集成 | 需要编写测试代码、构建测试包 |
+
+**建议**：
+- 开发调试阶段：使用 `uitest` 命令快速验证
+- 生产测试阶段：使用 ArkTest 框架编写正式测试用例
+
+---
+
+## 九、成功测试案例：目录浮层滚动偏移量保留（2026-03-11）
+
+### 9.1 测试场景
+验证目录浮层（bindSheet）在关闭后重新打开时，能否保留之前的滚动偏移量。
+
+### 9.2 测试步骤
+
+```bash
+# 步骤 1: 打开目录浮层
+hdc shell uitest uiInput click 1170 180
+sleep 1
+
+# 步骤 2: 在目录浮层中向下滚动
+hdc shell uitest uiInput swipe 630 2200 630 1800 600
+sleep 1
+
+# 步骤 3: 关闭目录浮层
+hdc shell uitest uiInput click 1170 180
+sleep 1
+
+# 步骤 4: 重新打开目录浮层
+hdc shell uitest uiInput click 1170 180
+sleep 1
+```
+
+### 9.3 预期结果
+重新打开后，目录浮层应显示与关闭前相同的滚动位置。
+
+### 9.4 实际结果
+✅ **测试通过** - 滚动偏移量成功保留
+
+### 9.5 Bug 分析与修复
+
+#### 问题原因
+在 `onScrollIndex` 中实时保存滚动偏移量，但 bindSheet 弹出时的初始化滚动事件会触发 `onScrollIndex`，导致保存了 0，覆盖了之前保存的偏移量。
+
+#### 修复方案
+1. **移除 `onScrollIndex` 中的保存逻辑** - 不再实时保存
+2. **在 `bindSheet` 的 `onDisappear` 中保存偏移量** - 只在关闭浮层时保存最终位置
+3. **简化 `List.onAppear` 逻辑** - 只负责恢复滚动位置
+
+#### 关键代码修改
+```typescript
+// bindSheet 的 onDisappear 中保存偏移量
+onDisappear: () => {
+  const currentOffset = this.tocScroller.currentOffset().yOffset
+  StorageService.saveTocScrollOffset(currentOffset)
+  hilog.info(DOMAIN, 'testTag', '[ReaderPage] TOC bindSheet onDisappear, offset saved: %{public}d', currentOffset)
+  this.showToc = false
+}
+
+// List.onAppear 中恢复滚动位置
+.onAppear(() => {
+  const savedOffset = StorageService.getTocScrollOffset()
+  hilog.info(DOMAIN, 'testTag', '[ReaderPage] TOC List onAppear called, savedOffset=%{public}d', savedOffset)
+  setTimeout(() => {
+    hilog.info(DOMAIN, 'testTag', '[ReaderPage] TOC List scrolling to offset: %{public}d', savedOffset)
+    this.tocScroller.scrollTo({ xOffset: 0, yOffset: savedOffset, animation: false })
+  }, 100)
+})
+```
+
+### 9.6 经验总结
+
+#### 调试技巧
+1. **使用日志追踪问题**：通过 hilog 查看 `onScrollIndex` 和 `onAppear` 的调用顺序
+2. **截图对比验证**：每次操作后截图，对比滚动位置
+3. **分步执行测试**：将测试步骤拆分，便于定位问题
+
+#### 设计原则
+1. **避免在滚动事件中实时保存** - 滚动事件可能在初始化时触发，导致数据被覆盖
+2. **在组件消失时保存状态** - 确保保存的是最终状态
+3. **简化状态管理** - 移除不必要的标志位（`tocScrollInitialized`、`isRestoringScroll`）
+
+#### 关键坐标记录
+| 操作 | 坐标 | 说明 |
+|------|------|------|
+| 目录按钮 | (1170, 180) | ☰ 按钮 |
+| 滑动起始 | (630, 2200) | 浮层中间偏下 |
+| 滑动结束 | (630, 1800) | 向上滑动 400px |

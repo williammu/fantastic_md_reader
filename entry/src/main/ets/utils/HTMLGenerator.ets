@@ -513,7 +513,7 @@ export class HTMLGenerator {
                                'byte', 'short', 'int', 'long', 'String', 'boolean', 'char', 'float', 'double', 'import', 'package',
                                'true', 'false', 'null', 'try', 'catch', 'finally', 'throw', 'enum',
                                'abstract', 'native', 'strictfp', 'synchronized', 'transient', 'volatile',
-                               'super', 'this', 'instanceof', 'goto', 'const']
+                               'super', 'this', 'instanceof', 'goto', 'const', 'override']
     for (const kw of keywords) {
       const pattern: RegExp = new RegExp(`\\b${kw}\\b`, 'g')
       html = html.replace(pattern, (m) => addToken(m, 'keyword'))
@@ -555,12 +555,23 @@ export class HTMLGenerator {
     html = html.replace(/#.*$/gm, (m) => addToken(m, 'comment'))
     
     // 关键字
-    const keywords: string[] = ['def', 'class', 'return', 'if', 'elif', 'else', 'for', 'while', 'in', 'not', 'and', 'or',
+    const keywords: string[] = ['def', 'class', 'var', 'return', 'if', 'elif', 'else', 'for', 'while', 'in', 'not', 'and', 'or',
                                'import', 'from', 'as', 'try', 'except', 'finally', 'raise', 'pass', 'break', 'continue',
                                'True', 'False', 'None', 'self', 'lambda', 'yield', 'async', 'await', 'with',
-                               'global', 'nonlocal', 'del', 'assert', 'match', 'case']
+                               'global', 'nonlocal', 'del', 'assert', 'match', 'case', '__init__']
     for (const kw of keywords) {
       const pattern: RegExp = new RegExp(`\\b${kw}\\b`, 'g')
+      html = html.replace(pattern, (m) => addToken(m, 'keyword'))
+    }
+    
+    // 类型注解和内置类型
+    const builtinTypes: string[] = ['int', 'str', 'float', 'bool', 'list', 'dict', 'tuple', 'set', 'frozenset',
+                                    'bytes', 'bytearray', 'memoryview', 'complex', 'object', 'type', 'NoneType',
+                                    'Callable', 'Iterable', 'Iterator', 'Generator', 'Sequence', 'Mapping', 'MutableMapping',
+                                    'List', 'Dict', 'Tuple', 'Set', 'Optional', 'Union', 'Any', 'Literal', 'Protocol',
+                                    'NamedTuple', 'TypedDict', 'Final', 'ClassVar', 'InitVar', 'Self', 'TypeVar', 'Generic']
+    for (const typeName of builtinTypes) {
+      const pattern: RegExp = new RegExp(`\\b${typeName}\\b`, 'g')
       html = html.replace(pattern, (m) => addToken(m, 'keyword'))
     }
     
@@ -592,6 +603,8 @@ export class HTMLGenerator {
     html = html.replace(/#\s*define\s+(?!__PH_)\w+/g, (m) => addToken(m, 'keyword'))
     html = html.replace(/#\s*ifdef\s+(?!__PH_)\w+/g, (m) => addToken(m, 'keyword'))
     html = html.replace(/#\s*ifndef\s+(?!__PH_)\w+/g, (m) => addToken(m, 'keyword'))
+    html = html.replace(/#\s*elif\s+(?!__PH_).*/g, (m) => addToken(m, 'keyword'))
+    html = html.replace(/#\s*else/g, (m) => addToken(m, 'keyword'))
     html = html.replace(/#\s*endif/g, (m) => addToken(m, 'keyword'))
     
     // 字符串和字符字面量
@@ -719,7 +732,7 @@ export class HTMLGenerator {
     const keywords: string[] = ['import', 'func', 'var', 'let', 'class', 'struct', 'enum', 'protocol',
                                'extension', 'public', 'private', 'internal', 'fileprivate', 'open',
                                'static', 'final', 'mutating', 'lazy', 'weak', 'unowned',
-                               'return', 'if', 'else', 'guard', 'switch', 'case', 'default',
+                               'override', 'return', 'if', 'else', 'guard', 'switch', 'case', 'default',
                                'for', 'while', 'repeat', 'in', 'where', 'break', 'continue', 'fallthrough',
                                'self', 'Self', 'init', 'deinit', 'subscript', 'operator', 'precedence',
                                'nil', 'true', 'false', 'try', 'catch', 'throw', 'throws', 'rethrows',

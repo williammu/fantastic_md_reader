@@ -4,8 +4,8 @@ import { Document, ReadingProgress } from '../models/Document'
 // 存储键名
 const KEY_RECENT_DOCS: string = 'recent_documents'
 const KEY_FAVORITE_DOCS: string = 'favorite_documents'
-const KEY_TTS_SETTINGS: string = 'tts_settings'
 const KEY_FIRST_INSTALL: string = 'first_install_done'
+const KEY_TOC_SCROLL_OFFSET: string = 'toc_scroll_offset'
 
 // 用户偏好存储服务
 export class StorageService {
@@ -46,8 +46,6 @@ export class StorageService {
       source: doc.source,
       lastOpenTime: Date.now(),
       readingPosition: doc.readingPosition,
-      ttsParagraph: doc.ttsParagraph,
-      ttsProgress: doc.ttsProgress,
       isFavorite: doc.isFavorite,
       tags: doc.tags,
       size: doc.size,
@@ -112,8 +110,6 @@ export class StorageService {
         source: doc.source,
         lastOpenTime: doc.lastOpenTime,
         readingPosition: doc.readingPosition,
-        ttsParagraph: doc.ttsParagraph,
-        ttsProgress: doc.ttsProgress,
         isFavorite: true,
         tags: doc.tags,
         size: doc.size,
@@ -167,37 +163,6 @@ export class StorageService {
     StorageService.pref.deleteSync(key)
   }
   
-  // ========== TTS 设置 ==========
-  
-  // 获取 TTS 设置
-  static getTTSSettings(): TTSSettings {
-    if (StorageService.pref === null) return getDefaultTTSSettings()
-    const json: string = StorageService.pref.getSync(KEY_TTS_SETTINGS, '') as string
-    if (json.length === 0) return getDefaultTTSSettings()
-    try {
-      const saved: TTSSettings = JSON.parse(json) as TTSSettings
-      // 手动合并默认值
-      const defaults: TTSSettings = getDefaultTTSSettings()
-      return {
-        speed: saved.speed !== undefined ? saved.speed : defaults.speed,
-        pitch: saved.pitch !== undefined ? saved.pitch : defaults.pitch,
-        volume: saved.volume !== undefined ? saved.volume : defaults.volume,
-        voice: saved.voice !== undefined ? saved.voice : defaults.voice,
-        autoScroll: saved.autoScroll !== undefined ? saved.autoScroll : defaults.autoScroll,
-        highlightSentence: saved.highlightSentence !== undefined ? saved.highlightSentence : defaults.highlightSentence,
-        sleepTimer: saved.sleepTimer !== undefined ? saved.sleepTimer : defaults.sleepTimer
-      }
-    } catch {
-      return getDefaultTTSSettings()
-    }
-  }
-  
-  // 保存 TTS 设置
-  static saveTTSSettings(settings: TTSSettings) {
-    if (StorageService.pref === null) return
-    StorageService.pref.putSync(KEY_TTS_SETTINGS, JSON.stringify(settings))
-  }
-  
   // ========== 字体大小设置 ==========
   private static readonly KEY_FONT_SIZE: string = 'reader_font_size'
   private static readonly DEFAULT_FONT_SIZE: number = 18  // 默认18sp
@@ -227,28 +192,28 @@ export class StorageService {
     if (StorageService.pref === null) return
     StorageService.pref.putSync(KEY_FIRST_INSTALL, 'true')
   }
-}
 
-// TTS 设置接口
-export interface TTSSettings {
-  speed: number
-  pitch: number
-  volume: number
-  voice: 'male' | 'female' | 'custom'
-  autoScroll: boolean
-  highlightSentence: boolean
-  sleepTimer: number
-}
+  // ========== 目录滚动位置 ==========
 
-// 默认 TTS 设置
-export function getDefaultTTSSettings(): TTSSettings {
-  return {
-    speed: 1.0,
-    pitch: 1.0,
-    volume: 1.0,
-    voice: 'female',
-    autoScroll: true,
-    highlightSentence: true,
-    sleepTimer: 0
+  // 保存目录滚动位置
+  static saveTocScrollOffset(offset: number) {
+    if (StorageService.pref === null) {
+      console.log('[StorageService] saveTocScrollOffset: pref is null')
+      return
+    }
+    console.log(`[StorageService] saveTocScrollOffset: ${offset}`)
+    StorageService.pref.putSync(KEY_TOC_SCROLL_OFFSET, offset)
+  }
+
+  // 获取目录滚动位置
+  static getTocScrollOffset(): number {
+    if (StorageService.pref === null) {
+      console.log('[StorageService] getTocScrollOffset: pref is null, returning 0')
+      return 0
+    }
+    const value = StorageService.pref.getSync(KEY_TOC_SCROLL_OFFSET, 0) as number
+    console.log(`[StorageService] getTocScrollOffset: ${value}`)
+    return value
   }
 }
+

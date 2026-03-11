@@ -28,6 +28,9 @@ export interface TocItem {
 
 // Markdown 解析器 - 将 Markdown 转换为 HTML
 export class MarkdownParser {
+  // 存储当前解析过程中的引用式链接定义
+  private static currentLinkReferences: Map<string, string> = new Map()
+  
   // 解析 Markdown 为 HTML
   static parse(md: string): string {
     let html: string = md
@@ -44,14 +47,34 @@ export class MarkdownParser {
       return `\u0003ESCAPE${escapedChars.length - 1}\u0003`
     })
     
-    // 代码块（需要在行内代码之前处理，且不转义内部内容）
-    html = MarkdownParser.extractCodeBlocks(html, saved.blocks)
+    // 解析引用式链接定义 [id]: url "title"
+    MarkdownParser.currentLinkReferences.clear()
+    const lines: string[] = html.split('\n')
+    const filteredLines: string[] = []
     
-    // 引用块
+    for (const line of lines) {
+      const refMatch = line.match(/^\s*\[([^\]]+)\]:\s*(\S+)(?:\s+"([^"]*)")?\s*$/)
+      if (refMatch) {
+        const id: string = refMatch[1].toLowerCase()
+        const url: string = refMatch[2]
+        MarkdownParser.currentLinkReferences.set(id, url)
+      } else {
+        filteredLines.push(line)
+      }
+    }
+    html = filteredLines.join('\n')
+    
+    // 引用块（内部会自己处理内部的代码块）
     html = MarkdownParser.parseBlockquotes(html, saved.tags, saved.blocks)
+    
+    // 先提取三个反引号的代码块（避免被其他解析器误处理）
+    html = MarkdownParser.extractCodeBlocks(html, saved.blocks)
     
     // 列表（需要递归处理嵌套）
     html = MarkdownParser.parseLists(html, saved.tags)
+    
+    // 提取缩进代码块（在列表解析之后，避免误识别列表项）
+    html = MarkdownParser.extractIndentedCodeBlocks(html, saved.blocks)
     
     // 表格
     html = MarkdownParser.parseTables(html, saved.tags)
@@ -61,6 +84,9 @@ export class MarkdownParser {
     
     // 分割线
     html = MarkdownParser.parseHorizontalRules(html, saved.tags)
+    
+    // 提取 HTML 块
+    html = MarkdownParser.extractHtmlBlocks(html, saved.tags)
     
     // 段落（内部已包含行内元素解析）
     html = MarkdownParser.parseParagraphs(html, saved.tags)
@@ -76,16 +102,127 @@ export class MarkdownParser {
     return html
   }
   
+  // 提取缩进代码块（4个空格或1个tab）
+  private static extractIndentedCodeBlocks(text: string, blocks: string[]): string {
+    const lines: string[] = text.split('\n')
+    const result: string[] = []
+    let inCodeBlock: boolean = false
+    let codeLines: string[] = []
+    
+    for (const line of lines) {
+      if (line.startsWith('    ') || line.startsWith('\t')) {
+        if (!inCodeBlock) {
+          inCodeBlock = true
+        }
+        if (line.startsWith('    ')) {
+          codeLines.push(line.substring(4))
+        } else {
+          codeLines.push(line.substring(1))
+        }
+      } else {
+        if (inCodeBlock) {
+          const index: number = blocks.length
+          const code: string = codeLines.join('\n')
+          const highlightedCode: string = HTMLGenerator.highlightCode(code, 'text')
+          blocks.push(`<pre><code class="language-text">${highlightedCode}</code></pre>`)
+          result.push(`\n\n___CODE_BLOCK_${index}___\n\n`)
+          inCodeBlock = false
+          codeLines = []
+        }
+        result.push(line)
+      }
+    }
+    
+    if (inCodeBlock) {
+      const index: number = blocks.length
+      const code: string = codeLines.join('\n')
+      const highlightedCode: string = HTMLGenerator.highlightCode(code, 'text')
+      blocks.push(`<pre><code class="language-text">${highlightedCode}</code></pre>`)
+      result.push(`\n\n___CODE_BLOCK_${index}___\n\n`)
+    }
+    
+    return result.join('\n')
+  }
+
   // 提取代码块
   private static extractCodeBlocks(text: string, blocks: string[]): string {
-    return text.replace(/```(\w*)\n([\s\S]*?)```/g, (match: string, lang: string, code: string) => {
+    let result: string = text
+    
+    // 先提取三个反引号的代码块
+    result = result.replace(/```(\w*)\n([\s\S]*?)```/g, (match: string, lang: string, code: string) => {
       const index: number = blocks.length
       const language: string = lang || 'text'
-      // 使用 HTMLGenerator 进行语法高亮
       const highlightedCode: string = HTMLGenerator.highlightCode(code, language)
       blocks.push(`<pre><code class="language-${language}">${highlightedCode}</code></pre>`)
       return `\n\n___CODE_BLOCK_${index}___\n\n`
     })
+    
+    // 缩进代码块在列表解析之后再处理，避免误识别列表项
+    return result
+  }
+  
+  // 提取 HTML 块，避免被包裹在 <p> 标签中
+  private static extractHtmlBlocks(text: string, tags: string[]): string {
+    let result: string = text
+    
+    // 匹配以 < 开头，可能前面有空白的行开始的 HTML 块
+    // 使用正则匹配完整的 HTML 块（简单处理，不处理嵌套）
+    const htmlBlockPattern = /^(\s*<[a-zA-Z][\s\S]*?)(?=\n\s*<[a-zA-Z]|\n\s*$|\n\s*#{1,6}|\n\s*[-*+]\s|\n\s*\d+\.\s|\n\s*```|\n\s*---+|\n\s*___+|\n\s*\*\*\*+)/gm
+    
+    // 简单处理：匹配以 < 开头的行块，直到遇到空行或块级元素
+    const lines: string[] = result.split('\n')
+    const processed: string[] = []
+    let inHtmlBlock: boolean = false
+    let htmlBlockLines: string[] = []
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line: string = lines[i]
+      
+      // 检查是否是 HTML 块的开始
+      if (!inHtmlBlock && line.trim().startsWith('<')) {
+        inHtmlBlock = true
+        htmlBlockLines.push(line)
+      } else if (inHtmlBlock) {
+        // 检查是否是 HTML 块的结束（遇到空行或块级元素开始）
+        const isBlockElementStart: boolean = 
+          line.trim().length === 0 ||
+          line.trim().startsWith('#') ||
+          !!(line.trim().match(/^[-*+]\s/)) ||
+          !!(line.trim().match(/^\d+\.\s/)) ||
+          line.trim().startsWith('```') ||
+          !!(line.trim().match(/^---+/)) ||
+          !!(line.trim().match(/^___+/)) ||
+          !!(line.trim().match(/^\*\*\*+/))
+        
+        if (isBlockElementStart) {
+          // 结束 HTML 块
+          const htmlBlock: string = htmlBlockLines.join('\n')
+          const index: number = tags.length
+          tags.push(htmlBlock)
+          processed.push(`___HTML_TAG_${index}___`)
+          
+          // 添加当前行
+          processed.push(line)
+          
+          inHtmlBlock = false
+          htmlBlockLines = []
+        } else {
+          htmlBlockLines.push(line)
+        }
+      } else {
+        processed.push(line)
+      }
+    }
+    
+    // 处理最后剩余的 HTML 块
+    if (inHtmlBlock && htmlBlockLines.length > 0) {
+      const htmlBlock: string = htmlBlockLines.join('\n')
+      const index: number = tags.length
+      tags.push(htmlBlock)
+      processed.push(`___HTML_TAG_${index}___`)
+    }
+    
+    return processed.join('\n')
   }
   
   // 保护 HTML 标签
@@ -155,41 +292,91 @@ export class MarkdownParser {
   // 解析标题 # ## ###
   private static parseHeaders(text: string, tags: string[]): string {
     // 先处理替代 H1/H2 语法 === ---（处理行内元素，添加锚点）
-    text = text.replace(/^(.+)\n={3,}$/gm, (match: string, p1: string) => {
-      const contentWithoutCustomId = MarkdownParser.removeCustomId(p1)
-      const processedContent = MarkdownParser.parseInlineElements(contentWithoutCustomId)
-      const anchorId = MarkdownParser.generateAnchorId(p1)
-      return MarkdownParser.protectHtmlTag(
-        `<h1 id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h1>`,
-        tags
-      )
-    })
-    text = text.replace(/^(.+)\n-{3,}$/gm, (match: string, p1: string) => {
-      const contentWithoutCustomId = MarkdownParser.removeCustomId(p1)
-      const processedContent = MarkdownParser.parseInlineElements(contentWithoutCustomId)
-      const anchorId = MarkdownParser.generateAnchorId(p1)
-      return MarkdownParser.protectHtmlTag(
-        `<h2 id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h2>`,
-        tags
-      )
-    })
+    // 但要跳过已经是占位符的行
+    const lines: string[] = text.split('\n')
+    const result: string[] = []
     
-    // 再处理 H1-H6（处理行内元素，添加锚点）
-    for (let i: number = 6; i >= 1; i--) {
-      const pattern: string = `^#{${i}}\\s+(.+)$`
-      const reg: RegExp = new RegExp(pattern, 'gm')
-      text = text.replace(reg, (match: string, p1: string) => {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      
+      // 如果是占位符，直接保留
+      if (line.startsWith('___HTML_TAG_') || line.startsWith('___CODE_BLOCK_')) {
+        result.push(line)
+        continue
+      }
+      
+      // 检查是否是替代 H1 语法（下一行是 ===）
+      if (i + 1 < lines.length && lines[i + 1].match(/^={3,}$/)) {
+        const p1 = line
         const contentWithoutCustomId = MarkdownParser.removeCustomId(p1)
         const processedContent = MarkdownParser.parseInlineElements(contentWithoutCustomId)
         const anchorId = MarkdownParser.generateAnchorId(p1)
-        return MarkdownParser.protectHtmlTag(
-          `<h${i} id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h${i}>`,
+        result.push(MarkdownParser.protectHtmlTag(
+          `<h1 id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h1>`,
           tags
-        )
-      })
+        ))
+        i++ // 跳过下一行的 ===
+        continue
+      }
+      
+      // 检查是否是替代 H2 语法（下一行是 ---）
+      if (i + 1 < lines.length && lines[i + 1].match(/^-{3,}$/)) {
+        const p1 = line
+        const contentWithoutCustomId = MarkdownParser.removeCustomId(p1)
+        const processedContent = MarkdownParser.parseInlineElements(contentWithoutCustomId)
+        const anchorId = MarkdownParser.generateAnchorId(p1)
+        result.push(MarkdownParser.protectHtmlTag(
+          `<h2 id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h2>`,
+          tags
+        ))
+        i++ // 跳过下一行的 ---
+        continue
+      }
+      
+      result.push(line)
     }
     
-    return text
+    text = result.join('\n')
+    
+    // 再处理 H1-H6（处理行内元素，添加锚点）
+    // 使用逐行处理，避免错误地匹配占位符
+    const lines2: string[] = text.split('\n')
+    const result2: string[] = []
+    
+    for (const line of lines2) {
+      // 如果是占位符，直接保留
+      if (line.startsWith('___HTML_TAG_') || line.startsWith('___CODE_BLOCK_')) {
+        result2.push(line)
+        continue
+      }
+      
+      let processed = false
+      
+      // 从 H6 到 H1 依次检查
+      for (let i: number = 6; i >= 1; i--) {
+        const pattern: string = `^#{${i}}\\s+(.+)$`
+        const reg: RegExp = new RegExp(pattern)
+        const match = line.match(reg)
+        if (match) {
+          const p1 = match[1]
+          const contentWithoutCustomId = MarkdownParser.removeCustomId(p1)
+          const processedContent = MarkdownParser.parseInlineElements(contentWithoutCustomId)
+          const anchorId = MarkdownParser.generateAnchorId(p1)
+          result2.push(MarkdownParser.protectHtmlTag(
+            `<h${i} id="${anchorId}"><a href="#${anchorId}" class="anchor-link">#</a>${processedContent}</h${i}>`,
+            tags
+          ))
+          processed = true
+          break
+        }
+      }
+      
+      if (!processed) {
+        result2.push(line)
+      }
+    }
+    
+    return result2.join('\n')
   }
   
   // 提取目录结构
@@ -215,7 +402,7 @@ export class MarkdownParser {
     return toc
   }
   
-  // 解析引用块 > - 支持嵌套和多行
+  // 解析引用块 > - 支持嵌套和多行（根据 GFM 规范）
   private static parseBlockquotes(text: string, tags: string[], blocks: string[]): string {
     const lines: string[] = text.split('\n')
     const result: string[] = []
@@ -227,13 +414,11 @@ export class MarkdownParser {
         inQuote = true
         quoteLines.push(line.substring(2))
       } else if (line.startsWith('>')) {
-        // 只有 > 没有内容
         inQuote = true
-        quoteLines.push('')
+        quoteLines.push(line.substring(1))
       } else {
         if (inQuote) {
-          // 结束引用块
-          const content: string = MarkdownParser.processQuoteContent(quoteLines, tags, blocks)
+          const content: string = MarkdownParser.parseQuoteContent(quoteLines, tags, blocks)
           result.push(MarkdownParser.protectHtmlTag(`<blockquote>${content}</blockquote>`, tags))
           inQuote = false
           quoteLines = []
@@ -242,71 +427,72 @@ export class MarkdownParser {
       }
     }
 
-    // 处理未闭合的引用
     if (inQuote) {
-      const content: string = MarkdownParser.processQuoteContent(quoteLines, tags, blocks)
+      const content: string = MarkdownParser.parseQuoteContent(quoteLines, tags, blocks)
       result.push(MarkdownParser.protectHtmlTag(`<blockquote>${content}</blockquote>`, tags))
     }
 
     return result.join('\n')
   }
   
-  // 处理引用内容（支持嵌套，递归解析内部 Markdown）
-  private static processQuoteContent(lines: string[], tags: string[], blocks: string[]): string {
-    const content: string = lines.join('\n')
-
-    // 检查是否有嵌套引用
-    const nestedLines: string[] = []
-    let hasNested: boolean = false
-
-    for (const line of lines) {
-      if (line.startsWith('> ')) {
-        hasNested = true
-        nestedLines.push(line.substring(2))
-      } else if (line.startsWith('>')) {
-        hasNested = true
-        nestedLines.push('')
-      } else {
-        nestedLines.push(line)
-      }
-    }
-
-    if (hasNested) {
-      // 有嵌套，递归处理嵌套引用
-      const processed: string = MarkdownParser.parseBlockquotes(nestedLines.join('\n'), tags, blocks)
-      // 继续解析内部内容（列表、表格等）
-      return MarkdownParser.parseQuoteInternal(processed, tags, blocks)
-    }
-
-    // 无嵌套，解析内部内容
-    return MarkdownParser.parseQuoteInternal(content, tags, blocks)
-  }
-
-  // 解析引用块内部的内容（代码块、列表、表格、标题、段落等）
-  private static parseQuoteInternal(text: string, tags: string[], blocks: string[]): string {
-    let html: string = text
-
-    // 首先提取代码块（引用块内的代码块）
-    html = MarkdownParser.extractCodeBlocks(html, blocks)
-
-    // 递归处理嵌套引用
-    html = MarkdownParser.parseBlockquotes(html, tags, blocks)
-
+  // 解析引用内容（根据 GFM 规范递归解析内部 Markdown）
+  private static parseQuoteContent(quoteLines: string[], tags: string[], blocks: string[]): string {
+    const localSaved: ProtectedContent = { blocks: [], tags: [] }
+    let html: string = quoteLines.join('\n')
+    
+    // 统一换行符
+    html = html.replace(/\r\n/g, '\n')
+    
+    // 先处理转义字符
+    const escapedChars: string[] = []
+    html = html.replace(/\\(.)/g, (match: string, char: string) => {
+      escapedChars.push(char)
+      return `\u0003ESCAPE${escapedChars.length - 1}\u0003`
+    })
+    
+    // 先提取三个反引号的代码块
+    html = MarkdownParser.extractCodeBlocks(html, localSaved.blocks)
+    
+    // 再解析嵌套引用
+    html = MarkdownParser.parseBlockquotes(html, localSaved.tags, localSaved.blocks)
+    
     // 解析列表
-    html = MarkdownParser.parseLists(html, tags)
-
+    html = MarkdownParser.parseLists(html, localSaved.tags)
+    
     // 解析表格
-    html = MarkdownParser.parseTables(html, tags)
-
-    // 解析分割线
-    html = MarkdownParser.parseHorizontalRules(html, tags)
-
+    html = MarkdownParser.parseTables(html, localSaved.tags)
+    
     // 解析标题
-    html = MarkdownParser.parseHeaders(html, tags)
-
-    // 解析段落（包含行内元素）
-    html = MarkdownParser.parseParagraphs(html, tags)
-
+    html = MarkdownParser.parseHeaders(html, localSaved.tags)
+    
+    // 解析分割线
+    html = MarkdownParser.parseHorizontalRules(html, localSaved.tags)
+    
+    // 解析段落
+    html = MarkdownParser.parseParagraphs(html, localSaved.tags)
+    
+    // 把本地保存的内容合并到外部传入的数组中
+    // 但是需要重新生成占位符，因为索引变了！
+    // 正确的做法是：先把本地的 blocks 和 tags 加到外部的数组
+    // 然后把本地的占位符替换为全局的索引
+    
+    const blocksOffset: number = blocks.length
+    for (let i: number = 0; i < localSaved.blocks.length; i++) {
+      blocks.push(localSaved.blocks[i])
+      html = html.replace(new RegExp(`___CODE_BLOCK_${i}___`, 'g'), `___CODE_BLOCK_${blocksOffset + i}___`)
+    }
+    
+    const tagsOffset: number = tags.length
+    for (let i: number = 0; i < localSaved.tags.length; i++) {
+      tags.push(localSaved.tags[i])
+      html = html.replace(new RegExp(`___HTML_TAG_${i}___`, 'g'), `___HTML_TAG_${tagsOffset + i}___`)
+    }
+    
+    // 恢复转义字符
+    for (let i = escapedChars.length - 1; i >= 0; i--) {
+      html = html.replace(new RegExp(`\u0003ESCAPE${i}\u0003`, 'g'), escapedChars[i])
+    }
+    
     return html
   }
   
@@ -561,6 +747,26 @@ export class MarkdownParser {
       return `\u0002BLOCK${index}\u0002`
     })
     
+    // 处理硬换行：行尾两个空格或反斜杠
+    text = text.replace(/  \n/g, '<br>')
+    text = text.replace(/\\\n/g, '<br>')
+    
+    // 处理 HTML 实体
+    text = text.replace(/&amp;/g, '&')
+    text = text.replace(/&lt;/g, '<')
+    text = text.replace(/&gt;/g, '>')
+    text = text.replace(/&quot;/g, '"')
+    text = text.replace(/&copy;/g, '©')
+    text = text.replace(/&nbsp;/g, ' ')
+    
+    // 处理数字字符引用
+    text = text.replace(/&#(\d+);/g, (match: string, num: string) => {
+      return String.fromCharCode(parseInt(num))
+    })
+    text = text.replace(/&#x([0-9a-fA-F]+);/g, (match: string, hex: string) => {
+      return String.fromCharCode(parseInt(hex, 16))
+    })
+    
     // 代码 `code`
     text = text.replace(/`([^`]+)`/g, '<code>$1</code>')
     
@@ -582,11 +788,25 @@ export class MarkdownParser {
     // 图片 ![alt](url)
     text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">')
     
-    // 链接 [text](url) - 锚点链接添加特殊标记（处理 # 号前后有空格的情况）
-    // 注意：不对锚点 ID 进行处理，保持用户原始输入
-    // 因为锚点 ID 可能是自定义的（如 section-1-overview），处理后会破坏链接
-    text = text.replace(/\[([^\]]+)\]\(\s*(#[^)]+)\s*\)/g, '<a href="$2" data-anchor-link="true">$1</a>')
-    text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2">$1</a>')
+    // 链接 [text](url) - 支持嵌套方括号
+    text = MarkdownParser.parseLinksWithNestedBrackets(text)
+    
+    // 引用式链接 [text][id]
+    const linkRefs: Map<string, string> = MarkdownParser.currentLinkReferences
+    
+    // 处理 [text][id] 格式
+    text = text.replace(/\[([^\]]+)\]\[([^\]]*)\]/g, (match: string, textPart: string, idPart: string) => {
+      let id: string = (idPart || textPart).toLowerCase()
+      if (linkRefs.has(id)) {
+        const url: string = linkRefs.get(id)!
+        if (url.startsWith('#')) {
+          return `<a href="${url}" data-anchor-link="true">${textPart}</a>`
+        } else {
+          return `<a href="${url}">${textPart}</a>`
+        }
+      }
+      return match
+    })
     
     // 自动链接 <url>
     text = text.replace(/<([\w.-]+@[\w.-]+)>/g, '<a href="mailto:$1">$1</a>')
@@ -601,5 +821,80 @@ export class MarkdownParser {
     })
     
     return text
+  }
+  
+  // 解析链接，支持嵌套方括号
+  private static parseLinksWithNestedBrackets(text: string): string {
+    let result: string = text
+    let pos: number = 0
+    
+    while (true) {
+      // 找到下一个 [ 的位置
+      const openBracket: number = result.indexOf('[', pos)
+      if (openBracket === -1) break
+      
+      // 找到匹配的 ]，支持嵌套
+      let balance: number = 1
+      let closeBracket: number = openBracket + 1
+      while (closeBracket < result.length && balance > 0) {
+        if (result.charAt(closeBracket) === '[') {
+          balance++
+        } else if (result.charAt(closeBracket) === ']') {
+          balance--
+        }
+        closeBracket++
+      }
+      
+      if (balance !== 0) {
+        // 没有匹配的 ]，跳过这个 [
+        pos = openBracket + 1
+        continue
+      }
+      
+      // 检查后面是否是 (url) 格式
+      const afterCloseBracket: number = closeBracket - 1
+      if (afterCloseBracket + 1 >= result.length || result.charAt(afterCloseBracket + 1) !== '(') {
+        pos = afterCloseBracket + 1
+        continue
+      }
+      
+      // 找到匹配的 )
+      const openParen: number = afterCloseBracket + 1
+      let parenBalance: number = 1
+      let closeParen: number = openParen + 1
+      while (closeParen < result.length && parenBalance > 0) {
+        if (result.charAt(closeParen) === '(') {
+          parenBalance++
+        } else if (result.charAt(closeParen) === ')') {
+          parenBalance--
+        }
+        closeParen++
+      }
+      
+      if (parenBalance !== 0) {
+        pos = openParen + 1
+        continue
+      }
+      
+      // 提取链接文本和 URL
+      const linkText: string = result.substring(openBracket + 1, afterCloseBracket)
+      const url: string = result.substring(openParen + 1, closeParen - 1).trim()
+      
+      // 生成替换后的 HTML
+      let replacement: string
+      if (url.startsWith('#')) {
+        replacement = `<a href="${url}" data-anchor-link="true">${linkText}</a>`
+      } else {
+        replacement = `<a href="${url}">${linkText}</a>`
+      }
+      
+      // 替换原文
+      result = result.substring(0, openBracket) + replacement + result.substring(closeParen)
+      
+      // 移动到替换后的位置继续查找
+      pos = openBracket + replacement.length
+    }
+    
+    return result
   }
 }
