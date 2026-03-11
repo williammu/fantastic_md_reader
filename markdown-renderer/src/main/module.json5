@@ -1,0 +1,10 @@
+{
+  "module": {
+    "name": "markdown_renderer",
+    "type": "har",
+    "deviceTypes": [
+      "default",
+      "tablet"
+    ]
+  }
+}

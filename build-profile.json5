@@ -52,6 +52,30 @@
           ]
         }
       ]
+    },
+    {
+      "name": "syntax_highlighter",
+      "srcPath": "./syntax-highlighter",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
+    },
+    {
+      "name": "markdown_renderer",
+      "srcPath": "./markdown-renderer",
+      "targets": [
+        {
+          "name": "default",
+          "applyToProducts": [
+            "default"
+          ]
+        }
+      ]
     }
   ]
 }

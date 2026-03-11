@@ -5,7 +5,7 @@ import { FileService } from '../services/FileService'
 import { fileIo } from '@kit.CoreFileKit'
 import { buffer } from '@kit.ArkTS'
 import { SharedFileStorage } from '../entryability/EntryAbility'
-import { MarkdownParser, TocItem } from '../utils/MarkdownParser'
+import { MarkdownParser, TocItem } from 'markdown-renderer'
 import { StorageService } from '../utils/StorageService'
 import { hilog } from '@kit.PerformanceAnalysisKit'
 

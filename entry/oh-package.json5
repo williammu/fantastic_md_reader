@@ -5,6 +5,9 @@
   "main": "",
   "author": "",
   "license": "",
-  "dependencies": {}
+  "dependencies": {
+    "markdown-renderer": "file:../markdown-renderer",
+    "syntax-highlighter": "file:../syntax-highlighter"
+  }
 }
 

@@ -1,6 +1,5 @@
 import { ThemeColors } from '../../models/Theme'
-import { MarkdownParser } from '../../utils/MarkdownParser'
-import { HTMLGenerator } from '../../utils/HTMLGenerator'
+import { MarkdownParser, HTMLGenerator } from 'markdown-renderer'
 import webview from '@ohos.web.webview'
 import { hilog } from '@kit.PerformanceAnalysisKit'
 
