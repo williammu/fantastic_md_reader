@@ -33,6 +33,9 @@ export class MarkdownParser {
     let html: string = md
     const saved: ProtectedContent = { blocks: [], tags: [] }
     
+    // 统一换行符为 LF，避免 CRLF 导致正则表达式匹配失败
+    html = html.replace(/\r\n/g, '\n')
+    
     // 先处理转义字符（避免被其他解析器误处理）
     // 使用临时占位符保存转义的字符
     const escapedChars: string[] = []

@@ -5,13 +5,13 @@
         "name": "default",
         "type": "HarmonyOS",
         "material": {
-          "certpath": "/Users/bytedance/.ohos/config/default_fantastic_md_reader_2zWCKT9_OdOOdvDin_FJdlh6uwVIe04Z58OkPN5LdZM=.cer",
+          "certpath": "C:/Users/IxorStorm/.ohos/config/default_md_reader_mG4PfzrXFMzF1GRn09phB6R1fWXgIZiCLZuKLnRCKWE=.cer",
           "keyAlias": "debugKey",
-          "keyPassword": "0000001BC51713893D9812F0E7A98C32A7DB759D46523857BC7A07CACCB72E5386B14B1C2FFAFE4E9C9A05",
-          "profile": "/Users/bytedance/.ohos/config/default_fantastic_md_reader_2zWCKT9_OdOOdvDin_FJdlh6uwVIe04Z58OkPN5LdZM=.p7b",
+          "keyPassword": "0000001B8E7E9A44B8C5B1449E40C0F2A3C3E3F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3",
+          "profile": "C:/Users/IxorStorm/.ohos/config/default_md_reader_mG4PfzrXFMzF1GRn09phB6R1fWXgIZiCLZuKLnRCKWE=.p7b",
           "signAlg": "SHA256withECDSA",
-          "storeFile": "/Users/bytedance/.ohos/config/default_fantastic_md_reader_2zWCKT9_OdOOdvDin_FJdlh6uwVIe04Z58OkPN5LdZM=.p12",
-          "storePassword": "0000001BB5C5B1542C26CDA48D28DF2BF08E31844F509824DE555352091FE67DFF2FC6BEB9C8D40267A1D2"
+          "storeFile": "C:/Users/IxorStorm/.ohos/config/default_md_reader_mG4PfzrXFMzF1GRn09phB6R1fWXgIZiCLZuKLnRCKWE=.p12",
+          "storePassword": "0000001B8E7E9A44B8C5B1449E40C0F2A3C3E3F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3"
         }
       }
     ],

@@ -14,16 +14,15 @@ import { hilog } from '@kit.PerformanceAnalysisKit'
 
 const DOMAIN = 0x0004
 
-// UTF-8 解码函数（使用系统 TextDecoder）
+// UTF-8 解码函数（使用 buffer 模块）
 function decodeUtf8(uint8Array: Uint8Array): string {
+  // 方法1: 直接使用 Uint8Array
   try {
-    // 使用 ArkTS 提供的 TextDecoder
-    const decoder = new util.TextDecoder('utf-8')
-    return decoder.decodeToString(uint8Array)
+    return buffer.from(uint8Array).toString('utf8')
   } catch (e) {
-    hilog.error(DOMAIN, 'testTag', '[ReaderPage] TextDecoder failed: %{public}s', JSON.stringify(e))
-    // 降级：手动解码
-    return decodeUtf8Manual(uint8Array)
+    hilog.error(DOMAIN, 'testTag', '[ReaderPage] buffer.from(uint8Array) failed: %{public}s', JSON.stringify(e))
+    // 方法2: 使用 ArrayBuffer
+    return buffer.from(uint8Array.buffer).toString('utf8')
   }
 }
 
@@ -36,6 +35,12 @@ function decodeUtf8Manual(uint8Array: Uint8Array): string {
     // 处理无符号字节
     const b1 = byte1 & 0xFF
     
+    // 调试：打印前20个字节的处理信息
+    if (i < 20) {
+      hilog.info(DOMAIN, 'testTag', '[ReaderPage] Byte at i=%{public}d: raw=%{public}d, b1=0x%{public}s, b1&0xF0=0x%{public}s', 
+        i, byte1, b1.toString(16), (b1 & 0xF0).toString(16))
+    }
+    
     if (b1 < 0x80) {
       // 单字节 ASCII
       result += String.fromCharCode(b1)
@@ -44,13 +49,19 @@ function decodeUtf8Manual(uint8Array: Uint8Array): string {
       // 双字节 UTF-8
       const b2 = uint8Array[i + 1] & 0xFF
       const code = ((b1 & 0x1F) << 6) | (b2 & 0x3F)
-      result += String.fromCharCode(code)
+      result += String.fromCodePoint(code)
       i += 2
     } else if ((b1 & 0xF0) === 0xE0) {
       // 三字节 UTF-8（中文常用）
       const b2 = uint8Array[i + 1] & 0xFF
       const b3 = uint8Array[i + 2] & 0xFF
       const code = ((b1 & 0x0F) << 12) | ((b2 & 0x3F) << 6) | (b3 & 0x3F)
+      // 调试：打印前3个中文字符的解码信息
+      if (i < 20) {
+        hilog.info(DOMAIN, 'testTag', '[ReaderPage] UTF-8 decode: i=%{public}d, b1=0x%{public}s, b2=0x%{public}s, b3=0x%{public}s, code=%{public}d', 
+          i, b1.toString(16), b2.toString(16), b3.toString(16), code)
+      }
+      // 使用 fromCharCode 代替 fromCodePoint
       result += String.fromCharCode(code)
       i += 3
     } else if ((b1 & 0xF8) === 0xF0) {
@@ -59,7 +70,7 @@ function decodeUtf8Manual(uint8Array: Uint8Array): string {
       const b3 = uint8Array[i + 2] & 0xFF
       const b4 = uint8Array[i + 3] & 0xFF
       let code = ((b1 & 0x07) << 18) | ((b2 & 0x3F) << 12) | ((b3 & 0x3F) << 6) | (b4 & 0x3F)
-      // 转换为 UTF-16 代理对
+      // 四字节字符需要转换为 UTF-16 代理对
       code -= 0x10000
       result += String.fromCharCode(0xD800 + (code >> 10), 0xDC00 + (code & 0x3FF))
       i += 4
@@ -210,11 +221,24 @@ struct ReaderPage {
       const context = getContext(this)
       const rawFile = await context.resourceManager.getRawFileContent(fileName)
       
+      // 关键：getRawFileContent 返回的对象需要转换为 Uint8Array
+      const uint8Array = new Uint8Array(rawFile)
+      
+      hilog.info(DOMAIN, 'testTag', '[ReaderPage] Raw file length: %{public}d', uint8Array.length)
+      
+      // 打印前 20 个字节的十六进制值，用于调试
+      let hexBytes = ''
+      for (let i = 0; i < Math.min(20, uint8Array.length); i++) {
+        hexBytes += uint8Array[i].toString(16).padStart(2, '0') + ' '
+      }
+      hilog.info(DOMAIN, 'testTag', '[ReaderPage] First 20 bytes (hex): %{public}s', hexBytes)
+      
       // 使用 UTF-8 解码
-      const uint8Array = new Uint8Array(rawFile.buffer, rawFile.byteOffset, rawFile.byteLength)
-      return decodeUtf8(uint8Array)
+      const decoded = decodeUtf8(uint8Array)
+      hilog.info(DOMAIN, 'testTag', '[ReaderPage] Decoded first 50 chars: %{public}s', decoded.substring(0, 50))
+      return decoded
     } catch (e) {
-      console.error(`[ReaderPage] Failed to read raw file: ${e}`)
+      hilog.error(DOMAIN, 'testTag', '[ReaderPage] Failed to read raw file: %{public}s', JSON.stringify(e))
       return ''
     }
   }
