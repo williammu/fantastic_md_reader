@@ -12,11 +12,18 @@ export struct MDRender {
   @Prop fontSize: number = 16
   @Prop lineHeight: number = 1.6
   @Prop @Watch('onScrollToAnchorChange') scrollToAnchor: string = ''
+  // 可选的外部 WebView 控制器，用于父组件控制导航
+  @Prop externalController: webview.WebviewController | null = null
 
   @State htmlSrc: string = ''
-  private webController: webview.WebviewController = new webview.WebviewController()
+  private internalController: webview.WebviewController = new webview.WebviewController()
   private lastScrollAnchor: string = ''
   private pageLoaded: boolean = false
+
+  // 获取实际使用的控制器
+  private getController(): webview.WebviewController {
+    return this.externalController ?? this.internalController
+  }
 
   aboutToAppear() {
     try {
@@ -43,7 +50,9 @@ export struct MDRender {
   }
 
   aboutToRecycle() {
-    this.webController = new webview.WebviewController()
+    if (!this.externalController) {
+      this.internalController = new webview.WebviewController()
+    }
   }
 
   // 监听 scrollToAnchor 变化，触发锚点跳转
@@ -67,7 +76,7 @@ export struct MDRender {
   // 滚动到指定锚点
   private scrollToElement(anchorId: string) {
     if (!anchorId) return
-    
+
     hilog.info(DOMAIN, 'testTag', '[MDRender] Scrolling to anchor: %{public}s', anchorId)
     const jsCode = `
       (function() {
@@ -80,18 +89,20 @@ export struct MDRender {
       })();
     `
     try {
-      this.webController.runJavaScript(jsCode)
+      this.getController().runJavaScript(jsCode)
     } catch (e) {
       hilog.error(DOMAIN, 'testTag', '[MDRender] Failed to scroll to anchor: %{public}s', JSON.stringify(e))
     }
   }
+
+
 
   build() {
     Column() {
       if (this.htmlSrc !== '') {
         Web({
           src: this.htmlSrc,
-          controller: this.webController
+          controller: this.getController()
         })
           .javaScriptAccess(true)
           .domStorageAccess(true)

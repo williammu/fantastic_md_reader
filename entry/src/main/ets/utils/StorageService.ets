@@ -215,5 +215,33 @@ export class StorageService {
     console.log(`[StorageService] getTocScrollOffset: ${value}`)
     return value
   }
+
+  // ========== 主题设置 ==========
+  private static readonly KEY_THEME_COLORS: string = 'reader_theme_colors'
+  private static readonly KEY_THEME_TYPE: string = 'reader_theme_type'
+
+  // 保存主题颜色
+  static setThemeColors(themeColors: object) {
+    if (StorageService.pref === null) return
+    StorageService.pref.putSync(StorageService.KEY_THEME_COLORS, JSON.stringify(themeColors))
+  }
+
+  // 获取主题颜色
+  static getThemeColors(): string {
+    if (StorageService.pref === null) return ''
+    return StorageService.pref.getSync(StorageService.KEY_THEME_COLORS, '') as string
+  }
+
+  // 保存主题类型
+  static setThemeType(themeType: string) {
+    if (StorageService.pref === null) return
+    StorageService.pref.putSync(StorageService.KEY_THEME_TYPE, themeType)
+  }
+
+  // 获取主题类型
+  static getThemeType(): string {
+    if (StorageService.pref === null) return 'light'
+    return StorageService.pref.getSync(StorageService.KEY_THEME_TYPE, 'light') as string
+  }
 }
 

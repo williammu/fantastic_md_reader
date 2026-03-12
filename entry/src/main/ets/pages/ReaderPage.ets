@@ -8,6 +8,8 @@ import { SharedFileStorage } from '../entryability/EntryAbility'
 import { MarkdownParser, TocItem } from 'markdown-renderer'
 import { StorageService } from '../utils/StorageService'
 import { hilog } from '@kit.PerformanceAnalysisKit'
+import webview from '@ohos.web.webview'
+// 使用图片图标资源
 
 const DOMAIN = 0x0004
 
@@ -96,6 +98,9 @@ struct ReaderPage {
   private fileUri: string = ''
   private sandboxPath: string = ''
   private isRawFile: boolean = false
+
+  // WebView 控制器 - 用于处理返回逻辑
+  private webController: webview.WebviewController = new webview.WebviewController()
 
   aboutToAppear() {
     // 获取路由参数
@@ -267,13 +272,19 @@ struct ReaderPage {
     Column() {
       // 顶部导航栏
       Row() {
-        Button('‹')
-          .fontSize(28)
-          .backgroundColor(Color.Transparent)
-          .fontColor(this.themeColors.textPrimary)
-          .onClick(() => {
-            router.back()
-          })
+        // 返回按钮
+        Button() {
+          Image($r('app.media.ic_back_48'))
+            .width(24)
+            .height(24)
+            .fillColor(this.themeColors.textPrimary)
+        }
+        .width(44)
+        .height(44)
+        .backgroundColor(Color.Transparent)
+        .onClick(() => {
+          this.handleBack()
+        })
 
         Text(this.fileName)
           .fontSize(18)
@@ -286,14 +297,19 @@ struct ReaderPage {
 
         // 目录按钮（仅在存在目录时显示）
         if (this.tocList.length > 0) {
-          Button('☰')
-            .fontSize(20)
-            .backgroundColor(Color.Transparent)
-            .fontColor(this.themeColors.textPrimary)
-            .onClick(() => {
-              this.showToc = true
-            })
-            .bindSheet(this.showToc, this.TocSheet(), {
+          Button() {
+            Image($r('app.media.ic_list_48'))
+              .width(22)
+              .height(22)
+              .fillColor(this.themeColors.textPrimary)
+          }
+          .width(44)
+          .height(44)
+          .backgroundColor(Color.Transparent)
+          .onClick(() => {
+            this.showToc = true
+          })
+          .bindSheet(this.showToc, this.TocSheet(), {
               height: 400,
               dragBar: true,
               showClose: true,
@@ -331,7 +347,8 @@ struct ReaderPage {
           content: this.content,
           themeColors: this.themeColors,
           fontSize: this.fontSize,
-          scrollToAnchor: this.currentAnchor
+          scrollToAnchor: this.currentAnchor,
+          externalController: this.webController
         })
         .layoutWeight(1)
       }
@@ -404,5 +421,23 @@ struct ReaderPage {
     .width('100%')
     .height('100%')
     .backgroundColor(this.themeColors.background)
+  }
+
+  // 处理返回按钮点击
+  private handleBack() {
+    // 先尝试 WebView 回退
+    try {
+      if (this.webController.accessBackward()) {
+        this.webController.backward()
+        hilog.info(DOMAIN, 'testTag', '[ReaderPage] WebView goBack success')
+        return
+      }
+    } catch (e) {
+      hilog.error(DOMAIN, 'testTag', '[ReaderPage] WebView goBack error: %{public}s', JSON.stringify(e))
+    }
+
+    // WebView 无法回退，返回列表
+    hilog.info(DOMAIN, 'testTag', '[ReaderPage] WebView cannot go back, returning to list')
+    router.back()
   }
 }

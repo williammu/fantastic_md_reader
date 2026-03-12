@@ -2,15 +2,15 @@
   "string": [
     {
       "name": "module_desc",
-      "value": "MD阅读器 - 支持朗读的Markdown阅读器"
+      "value": "𝓕𝓪𝓷𝓽𝓪𝓼𝓽𝓲𝓬 𝓜𝓓 𝓡𝓮𝓪𝓭𝓮𝓻 - 优雅的Markdown阅读器"
     },
     {
       "name": "EntryAbility_desc",
-      "value": "MD阅读器主入口"
+      "value": "𝓕𝓪𝓷𝓽𝓪𝓼𝓽𝓲𝓬 𝓜𝓓 𝓡𝓮𝓪𝓭𝓮𝓻 主入口"
     },
     {
       "name": "EntryAbility_label",
-      "value": "MD阅读器"
+      "value": "𝓕𝓪𝓷𝓽𝓪𝓼𝓽𝓲𝓬 𝓜𝓓 𝓡𝓮𝓪𝓭𝓮𝓻"
     },
     {
       "name": "read_media_permission",

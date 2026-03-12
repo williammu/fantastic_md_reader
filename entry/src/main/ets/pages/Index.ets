@@ -8,6 +8,7 @@ import { Document } from '../models/Document'
 import { SharedFileStorage } from '../entryability/EntryAbility'
 import { fileIo } from '@kit.CoreFileKit'
 import { promptAction } from '@kit.ArkUI'
+// 使用图片图标资源
 
 // 分享文件信息接口
 interface SharedFileInfo {
@@ -100,78 +101,110 @@ struct Index {
 
   build() {
     Column() {
-      // 顶部标题栏
+      // 顶部标题栏 - 华为风格
       Row() {
-        Text('MD 阅读器')
-          .fontSize(20)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.themeColors.textPrimary)
+        // Logo 和标题
+        Row({ space: 8 }) {
+          // 书本图标
+          Image($r('app.media.startIcon'))
+            .width(32)
+            .height(32)
+            .objectFit(ImageFit.Contain)
+          
+          Text('𝓕𝓪𝓷𝓽𝓪𝓼𝓽𝓲𝓬 𝓜𝓓')
+            .fontSize(20)
+            .fontWeight(FontWeight.Bold)
+            .fontColor(this.themeColors.textPrimary)
+        }
         
         Blank()
         
         // 主题切换按钮
-        Button(this.getThemeIcon())
-          .fontSize(20)
-          .backgroundColor(Color.Transparent)
-          .fontColor(this.themeColors.textPrimary)
-          .onClick(() => {
-            this.toggleTheme()
-          })
-        
+        this.ThemeIconButton()
+
         // 设置按钮
-        Button('⚙')
-          .fontSize(20)
-          .backgroundColor(Color.Transparent)
-          .fontColor(this.themeColors.textPrimary)
-          .onClick(() => {
-            router.pushUrl({ url: 'pages/SettingsPage' })
-          })
+        Button() {
+          Image($r('app.media.ic_settings_48'))
+            .width(22)
+            .height(22)
+            .fillColor(this.currentTheme === ThemeType.DARK ? '#FFFFFF' : '#2C2C2C')
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor(this.currentTheme === ThemeType.DARK ? '#3A3A3C' : '#F2F2F7')
+        .borderRadius(20)
+        .onClick(() => {
+          router.pushUrl({ url: 'pages/SettingsPage' })
+        })
       }
       .width('100%')
-      .height(56)
-      .padding({ left: 16, right: 16 })
+      .height(60)
+      .padding({ left: 20, right: 12 })
       .backgroundColor(this.themeColors.background)
       
-      // 搜索栏
-      Row() {
-        Text('🔍')
-          .fontSize(16)
-          .margin({ right: 8 })
+      // 搜索栏 - 卡片式设计
+      Row({ space: 12 }) {
+        Image($r('app.media.ic_search_48'))
+          .width(18)
+          .height(18)
+          .fillColor(this.themeColors.textTertiary)
+        
         Text('搜索 Markdown 文件')
-          .fontSize(14)
+          .fontSize(15)
           .fontColor(this.themeColors.textTertiary)
+        
         Blank()
       }
       .width('100%')
-      .height(44)
+      .height(48)
       .padding({ left: 16, right: 16 })
-      .margin(16)
+      .margin({ left: 16, right: 16, top: 12, bottom: 8 })
       .backgroundColor(this.themeColors.surface)
-      .borderRadius(22)
+      .borderRadius(12)
+      .shadow({
+        radius: 2,
+        color: 'rgba(0,0,0,0.04)',
+        offsetY: 1
+      })
       .onClick(() => {
         router.pushUrl({ url: 'pages/SearchPage' })
       })
       
-      // 内容区域 - 使用 Scroll + Refresh 实现下拉刷新
+      // 内容区域 - 使用 Refresh 实现下拉刷新
       Refresh({ refreshing: $$this.isLoading }) {
         List({ space: 0 }) {
           // 最近阅读区域
           if (this.recentDocs.length > 0) {
             ListItem() {
               Column() {
-                Text('最近阅读')
-                  .fontSize(18)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor(this.themeColors.textPrimary)
-                  .alignSelf(ItemAlign.Start)
-                  .margin({ bottom: 12, left: 16, right: 16 })
+                Row() {
+                  Text('最近阅读')
+                    .fontSize(17)
+                    .fontWeight(FontWeight.Medium)
+                    .fontColor(this.themeColors.textPrimary)
+                  
+                  Blank()
+                  
+                  Text('查看全部')
+                    .fontSize(13)
+                    .fontColor(this.themeColors.primary)
+                }
+                .width('100%')
+                .padding({ left: 20, right: 20, bottom: 12 })
                 
-                ForEach(this.recentDocs, (doc: Document) => {
-                  this.FileItem(doc, true)
-                }, (doc: Document) => doc.id)
+                // 横向滚动的最近阅读卡片
+                List({ space: 12 }) {
+                  ForEach(this.recentDocs, (doc: Document) => {
+                    ListItem() {
+                      this.RecentCard(doc)
+                    }
+                  }, (doc: Document) => doc.id)
+                }
+                .listDirection(Axis.Horizontal)
+                .padding({ left: 20, right: 20 })
               }
               .width('100%')
-              .margin({ bottom: 16 })
+              .margin({ top: 8, bottom: 16 })
             }
           }
           
@@ -180,47 +213,46 @@ struct Index {
             Column() {
               Row() {
                 Text('本地文件')
-                  .fontSize(18)
+                  .fontSize(17)
                   .fontWeight(FontWeight.Medium)
                   .fontColor(this.themeColors.textPrimary)
                 
                 Blank()
                 
                 Text(`${this.documents.length} 个文件`)
-                  .fontSize(12)
+                  .fontSize(13)
                   .fontColor(this.themeColors.textTertiary)
               }
               .width('100%')
-              .padding({ left: 16, right: 16 })
-              .margin({ bottom: 12 })
+              .padding({ left: 20, right: 20, bottom: 12 })
               
               if (this.documents.length === 0 && !this.isLoading) {
                 // 空状态
                 Column() {
-                  Text('📁')
-                    .fontSize(48)
-                    .margin({ bottom: 12 })
+                  Image($r('app.media.ic_folder_96'))
+                    .width(64)
+                    .height(64)
+                    .fillColor(this.themeColors.textTertiary)
+
+                  Blank().height(16)
+                  
                   Text('未找到 Markdown 文件')
                     .fontSize(16)
                     .fontColor(this.themeColors.textSecondary)
-                  Text('将 .md 文件放入 Documents 目录或使用其他应用分享')
-                    .fontSize(12)
+                    .margin({ bottom: 8 })
+                  
+                  Text('将 .md 文件放入 Documents 目录')
+                    .fontSize(13)
                     .fontColor(this.themeColors.textTertiary)
-                    .margin({ top: 8 })
                 }
                 .width('100%')
-                .padding(40)
+                .padding(48)
               } else {
                 ForEach(this.documents, (doc: Document) => {
                   ListItem() {
-                    this.FileItem(doc, false)
+                    this.FileItem(doc)
                   }
                   .swipeAction({
-                    start: {
-                      builder: () => {
-                        // 可以添加左侧操作
-                      }
-                    },
                     end: {
                       builder: () => {
                         this.DeleteAction(doc)
@@ -247,21 +279,90 @@ struct Index {
     .backgroundColor(this.themeColors.background)
   }
   
-  // 文件项组件
+  // 最近阅读卡片
   @Builder
-  FileItem(doc: Document, isRecent: boolean) {
-    Row() {
-      Column() {
-        Text('📄')
-          .fontSize(24)
+  RecentCard(doc: Document) {
+    Column({ space: 8 }) {
+      // 文件图标
+      Stack() {
+        Rect()
+          .width(56)
+          .height(72)
+          .radius(6)
+          .fill(this.themeColors.surface)
+          .shadow({
+            radius: 4,
+            color: 'rgba(0,0,0,0.08)',
+            offsetY: 2
+          })
+        
+        Column({ space: 4 }) {
+          Rect()
+            .width(28)
+            .height(4)
+            .radius(2)
+            .fill(this.themeColors.textTertiary)
+          Rect()
+            .width(28)
+            .height(4)
+            .radius(2)
+            .fill(this.themeColors.textTertiary)
+          Rect()
+            .width(20)
+            .height(4)
+            .radius(2)
+            .fill(this.themeColors.textTertiary)
+        }
+      }
+      .width(56)
+      .height(72)
+      
+      // 文件名
+      Text(doc.name.replace(/\.md$/i, ''))
+        .fontSize(13)
+        .fontColor(this.themeColors.textPrimary)
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .width(80)
+        .textAlign(TextAlign.Center)
+      
+      // 时间
+      Text(FileService.formatTime(doc.lastOpenTime))
+        .fontSize(11)
+        .fontColor(this.themeColors.textTertiary)
+    }
+    .width(80)
+    .onClick(() => {
+      StorageService.addRecentDocument(doc)
+      router.pushUrl({
+        url: 'pages/ReaderPage',
+        params: { path: doc.path, name: doc.name }
+      })
+    })
+  }
+  
+  // 文件项组件 - 列表样式
+  @Builder
+  FileItem(doc: Document) {
+    Row({ space: 16 }) {
+      // 文件图标
+      Stack() {
+        Rect()
+          .width(48)
+          .height(48)
+          .radius(10)
+          .fill(this.themeColors.surface)
+        
+        // MD 标识
+        Text('MD')
+          .fontSize(14)
+          .fontWeight(FontWeight.Bold)
+          .fontColor(this.themeColors.primary)
       }
       .width(48)
       .height(48)
-      .backgroundColor(this.themeColors.surface)
-      .borderRadius(8)
-      .justifyContent(FlexAlign.Center)
       
-      Column() {
+      Column({ space: 4 }) {
         Text(doc.name)
           .fontSize(16)
           .fontWeight(FontWeight.Medium)
@@ -270,43 +371,43 @@ struct Index {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .width('100%')
         
-        Row() {
+        Row({ space: 8 }) {
           Text(FileService.formatFileSize(doc.size))
             .fontSize(12)
             .fontColor(this.themeColors.textSecondary)
           
-          Text(' · ')
-            .fontSize(12)
-            .fontColor(this.themeColors.textTertiary)
+          Circle()
+            .width(3)
+            .height(3)
+            .fill(this.themeColors.textTertiary)
           
-          Text(isRecent 
-            ? FileService.formatTime(doc.lastOpenTime)
-            : FileService.formatTime(doc.modifyTime))
+          Text(FileService.formatTime(doc.modifyTime))
             .fontSize(12)
             .fontColor(this.themeColors.textSecondary)
         }
-        .margin({ top: 4 })
       }
       .alignItems(HorizontalAlign.Start)
-      .margin({ left: 12 })
       .layoutWeight(1)
       
+      // 收藏标记
       if (doc.isFavorite) {
-        Text('⭐')
-          .fontSize(16)
-          .margin({ right: 8 })
+        Image($r('app.media.ic_star_48'))
+          .width(18)
+          .height(18)
+          .fillColor('#FFB800')
       }
-      
-      Text('›')
-        .fontSize(24)
-        .fontColor(this.themeColors.textTertiary)
+
+      // 前进箭头
+      Image($r('app.media.ic_forward_48'))
+        .width(20)
+        .height(20)
+        .fillColor(this.themeColors.textTertiary)
     }
     .width('100%')
-    .height(72)
-    .padding({ left: 16, right: 16 })
+    .height(76)
+    .padding({ left: 20, right: 20 })
     .backgroundColor(this.themeColors.background)
     .onClick(() => {
-      // 更新最近阅读并跳转
       StorageService.addRecentDocument(doc)
       router.pushUrl({
         url: 'pages/ReaderPage',
@@ -326,9 +427,9 @@ struct Index {
       }
       .type(ButtonType.Capsule)
       .backgroundColor('#FF4444')
-      .width(64)
       .height(40)
-      .margin({ right: 16 })
+      .padding({ left: 16, right: 16 })
+      .margin({ right: 20 })
       .onClick(() => {
         this.confirmDelete(doc)
       })
@@ -363,9 +464,7 @@ struct Index {
     
     FileService.deleteFile(doc.path).then((success) => {
       if (success) {
-        // 从列表中移除
         this.documents = this.documents.filter(d => d.id !== doc.id)
-        // 从最近阅读中移除
         StorageService.removeRecentDocument(doc.id)
         this.recentDocs = StorageService.getRecentDocuments()
         promptAction.showToast({ message: '已删除' })
@@ -382,35 +481,43 @@ struct Index {
       url: 'pages/ReaderPage',
       params: { 
         name: fileName,
-        isRawFile: true  // 标记为 rawfile 文件
+        isRawFile: true
       }
     })
   }
   
-  // 获取主题图标
-  getThemeIcon(): string {
-    switch (this.currentTheme) {
-      case ThemeType.DARK:
-        return '🌙'
-      case ThemeType.AUTO:
-        return '🔄'
-      default:
-        return '☀️'
+  // 主题图标按钮
+  @Builder
+  ThemeIconButton() {
+    Button() {
+      if (this.currentTheme === ThemeType.DARK) {
+        Image($r('app.media.ic_sun_48'))
+          .width(22)
+          .height(22)
+          .fillColor('#FFFFFF')
+      } else {
+        Image($r('app.media.ic_moon_48'))
+          .width(22)
+          .height(22)
+          .fillColor('#FFFFFF')
+      }
     }
+    .width(40)
+    .height(40)
+    .backgroundColor(this.currentTheme === ThemeType.DARK ? '#5856D6' : '#007AFF')
+    .borderRadius(20)
+    .onClick(() => {
+      this.toggleTheme()
+    })
   }
-  
-  // 切换主题
+
+  // 切换主题 - 简化为只有亮色和暗色
   toggleTheme() {
     let nextTheme: ThemeType
-    switch (this.currentTheme) {
-      case ThemeType.LIGHT:
-        nextTheme = ThemeType.DARK
-        break
-      case ThemeType.DARK:
-        nextTheme = ThemeType.AUTO
-        break
-      default:
-        nextTheme = ThemeType.LIGHT
+    if (this.currentTheme === ThemeType.LIGHT) {
+      nextTheme = ThemeType.DARK
+    } else {
+      nextTheme = ThemeType.LIGHT
     }
     ThemeManager.setTheme(nextTheme)
   }

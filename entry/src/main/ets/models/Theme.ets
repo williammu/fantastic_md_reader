@@ -6,7 +6,10 @@ export type ThemeColors = BaseThemeColors
 export enum ThemeType {
   LIGHT = 'light',
   DARK = 'dark',
-  AUTO = 'auto'
+  AUTO = 'auto',
+  PAPER = 'paper',       // 华为风格类纸书主题
+  DARK_EYE = 'darkEye',  // 华为风格深色护眼主题
+  EYE_CARE = 'eyeCare'   // 传统护眼主题
 }
 
 export const LightTheme: ThemeColors = {
@@ -76,4 +79,52 @@ export const EyeCareTheme: ThemeColors = {
   syntaxOperator: '#3D3D3D',
   syntaxConstant: '#2E7D7A',
   syntaxEnum: '#7B4B8C'
+}
+
+// 华为风格舒适阅读主题 - 类纸书体验
+export const PaperTheme: ThemeColors = {
+  background: '#FAF8F3',           // 暖白纸张色
+  surface: '#F5F2EA',              // 浅米色表面
+  textPrimary: '#2C2C2C',          // 深灰墨色，柔和不刺眼
+  textSecondary: '#5A5A5A',        // 中灰次要文字
+  textTertiary: '#8A8A8A',         // 浅灰辅助文字
+  border: '#E8E4DC',               // 柔和边框
+  divider: '#F0EDE5',              // 淡色分隔线
+  primary: '#C45C26',              // 华为红橙色，温暖醒目
+  primaryLight: '#FDF2ED',         // 淡橙背景
+  codeBackground: '#F2EFE8',       // 代码块背景
+  quoteBackground: '#F7F4ED',      // 引用块背景
+  statusBar: 'dark',
+  syntaxKeyword: '#2E5AAC',        // 深蓝关键字
+  syntaxString: '#8B4513',         // 棕色字符串
+  syntaxNumber: '#2D6A4F',         // 墨绿数字
+  syntaxFunction: '#7C6F0E',       // 橄榄黄函数
+  syntaxComment: '#6B8E6B',        // 灰绿注释
+  syntaxOperator: '#4A4A4A',       // 深灰操作符
+  syntaxConstant: '#1E6B6B',       // 青绿常量
+  syntaxEnum: '#7B4B8C'            // 紫色枚举
+}
+
+// 华为风格深色护眼主题
+export const DarkEyeTheme: ThemeColors = {
+  background: '#1A1A1A',           // 深黑背景
+  surface: '#252525',              // 深灰表面
+  textPrimary: '#E8E4DC',          // 暖白主文字
+  textSecondary: '#B8B4AC',        // 暖灰次要文字
+  textTertiary: '#888480',         // 灰棕辅助文字
+  border: '#3A3A3A',               // 深灰边框
+  divider: '#333333',              // 分隔线
+  primary: '#FF8C5A',              // 暖橙主色
+  primaryLight: '#3D2A1F',         // 深橙背景
+  codeBackground: '#2A2A2A',       // 代码块背景
+  quoteBackground: '#303030',      // 引用块背景
+  statusBar: 'light',
+  syntaxKeyword: '#6B9BD0',        // 浅蓝关键字
+  syntaxString: '#D4A574',         // 暖棕字符串
+  syntaxNumber: '#8FBC8F',         // 浅绿数字
+  syntaxFunction: '#DCDCAA',       // 浅黄函数
+  syntaxComment: '#7A9A6A',        // 灰绿注释
+  syntaxOperator: '#C0C0C0',       // 银灰操作符
+  syntaxConstant: '#6BCBCB',       // 浅青常量
+  syntaxEnum: '#C586C0'            // 浅紫枚举
 }

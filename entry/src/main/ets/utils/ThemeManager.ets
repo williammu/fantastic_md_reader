@@ -15,8 +15,8 @@ export const LINE_SPACING_KEY_STORAGE = 'reader_line_spacing_val'
 export class ThemeManager {
   // 初始化主题系统
   static init() {
-    // 从存储读取主题设置，默认自动
-    const savedTheme = AppStorage.get<string>(THEME_KEY) || ThemeType.AUTO
+    // 从存储读取主题设置，默认亮色
+    const savedTheme = AppStorage.get<string>(THEME_KEY) || ThemeType.LIGHT
     AppStorage.setOrCreate(CURRENT_THEME_KEY, savedTheme)
     AppStorage.setOrCreate(CURRENT_COLORS_KEY, ThemeManager.getThemeColors(savedTheme))
     
@@ -39,11 +39,7 @@ export class ThemeManager {
   
   // 获取主题颜色
   static getThemeColors(type: string): ThemeColors {
-    // 自动模式根据系统判断
-    if (type === ThemeType.AUTO) {
-      // 简化处理：默认返回浅色主题
-      return LightTheme
-    }
+    // 简化为只有亮色和暗色两种
     return type === ThemeType.DARK ? DarkTheme : LightTheme
   }
   
@@ -62,12 +58,8 @@ export class ThemeManager {
   // 获取当前主题（用于装饰器）
   static getCurrentTheme(): ThemeType {
     const theme = AppStorage.get(CURRENT_THEME_KEY) as string
-    if (theme === ThemeType.DARK) {
-      return ThemeType.DARK
-    } else if (theme === ThemeType.AUTO) {
-      return ThemeType.AUTO
-    }
-    return ThemeType.LIGHT
+    // 简化为只有亮色和暗色两种
+    return theme === ThemeType.DARK ? ThemeType.DARK : ThemeType.LIGHT
   }
   
   // 获取当前颜色
