@@ -79,6 +79,85 @@
 - **Java**: 用于打包 HAP（如果需要）
 - **hdc**: 用于安装到设备
 
+## 模拟器与真机构建
+
+### 模拟器构建（无需签名）
+
+模拟器不需要签名，直接构建即可：
+
+```bash
+# 确保 build-profile.json5 中签名配置被注释
+.\build.bat hap
+
+# 安装到模拟器
+hdc -t 127.0.0.1:5555 install entry\build\default\outputs\default\entry-default-unsigned.hap
+```
+
+### 真机构建（需要签名）
+
+真机安装必须有签名，配置方法如下：
+
+#### 方法1：DevEco Studio 自动签名（推荐）
+
+1. 打开 DevEco Studio
+2. 连接真机设备
+3. 点击 `File` -> `Project Structure` -> `Project` -> `Signing Configs`
+4. 勾选 `Automatically generate signature`
+5. 点击 `Apply` 和 `OK`
+6. 签名文件会自动生成到 `~/.ohos/config/` 目录
+
+#### 方法2：手动配置签名
+
+在 `build-profile.json5` 中配置签名：
+
+```json5
+{
+  "app": {
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/xxx/.ohos/config/xxx.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "xxx",
+          "profile": "/Users/xxx/.ohos/config/xxx.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/xxx/.ohos/config/xxx.p12",
+          "storePassword": "xxx"
+        }
+      }
+    ],
+    "products": [
+      {
+        "name": "default",
+        "signingConfig": "default",  // 启用签名
+        "targetSdkVersion": "6.0.2(22)",
+        "compatibleSdkVersion": "6.0.2(22)",
+        "runtimeOS": "HarmonyOS"
+      }
+    ]
+  }
+}
+```
+
+#### 快速切换
+
+| 场景 | signingConfigs | signingConfig |
+|------|----------------|---------------|
+| 模拟器 | 注释掉 | 注释掉或设为 null |
+| 真机 | 配置签名文件 | "default" |
+
+#### 安装到真机
+
+```bash
+# 构建签名 HAP
+.\build.bat hap
+
+# 安装到真机（替换为实际设备ID）
+hdc -t 2SX0224417010945 install entry\build\default\outputs\default\entry-default-signed.hap
+```
+
 ## 常见问题
 
 ### 1. 找不到 DevEco Studio
@@ -102,7 +181,16 @@ $DevEcoHome = "你的DevEco Studio安装路径"
 .\build.bat
 ```
 
-### 4. 停止 Daemon
+### 4. 签名验证失败
+
+错误信息：`Signature material verification failed`
+
+解决方法：
+- 在 DevEco Studio 中重新生成签名
+- 确保 `build-profile.json5` 中的密码正确
+- 真机必须使用签名，模拟器不需要
+
+### 5. 停止 Daemon
 
 如果构建卡住，可以停止 daemon：
 

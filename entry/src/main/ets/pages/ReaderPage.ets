@@ -1,5 +1,6 @@
 import { router } from '@kit.ArkUI'
-import { ThemeColors, LightTheme } from '../models/Theme'
+import { ThemeColors, LightTheme, DarkTheme, ThemeType } from '../models/Theme'
+import { ThemeManager } from '../utils/ThemeManager'
 import { MDRender } from '../components/MDRender/MDRender'
 import { FileService } from '../services/FileService'
 import { fileIo } from '@kit.CoreFileKit'
@@ -86,6 +87,7 @@ function decodeUtf8Manual(uint8Array: Uint8Array): string {
 struct ReaderPage {
   @StorageLink('current_theme_colors') themeColors: ThemeColors = LightTheme
   @StorageLink('reader_font_size_val') fontSize: number = 18
+  @StorageLink('current_theme_type') currentTheme: ThemeType = ThemeType.LIGHT
 
   @State content: string = ''
   @State fileName: string = '未命名'
@@ -271,7 +273,7 @@ struct ReaderPage {
   build() {
     Column() {
       // 顶部导航栏
-      Row() {
+      Row({ space: 8 }) {
         // 返回按钮
         Button() {
           Image($r('app.media.ic_back_48'))
@@ -294,6 +296,9 @@ struct ReaderPage {
           .textOverflow({ overflow: TextOverflow.Ellipsis })
           .layoutWeight(1)
           .textAlign(TextAlign.Center)
+
+        // 主题切换按钮
+        this.ThemeIconButton()
 
         // 目录按钮（仅在存在目录时显示）
         if (this.tocList.length > 0) {
@@ -439,5 +444,41 @@ struct ReaderPage {
     // WebView 无法回退，返回列表
     hilog.info(DOMAIN, 'testTag', '[ReaderPage] WebView cannot go back, returning to list')
     router.back()
+  }
+
+  // 主题图标按钮
+  @Builder
+  ThemeIconButton() {
+    Button() {
+      if (this.currentTheme === ThemeType.DARK) {
+        Image($r('app.media.ic_sun_48'))
+          .width(22)
+          .height(22)
+          .fillColor('#FFFFFF')
+      } else {
+        Image($r('app.media.ic_moon_48'))
+          .width(22)
+          .height(22)
+          .fillColor('#FFFFFF')
+      }
+    }
+    .width(40)
+    .height(40)
+    .backgroundColor(this.currentTheme === ThemeType.DARK ? '#5856D6' : '#007AFF')
+    .borderRadius(20)
+    .onClick(() => {
+      this.toggleTheme()
+    })
+  }
+
+  // 切换主题 - 简化为只有亮色和暗色
+  private toggleTheme() {
+    let nextTheme: ThemeType
+    if (this.currentTheme === ThemeType.LIGHT) {
+      nextTheme = ThemeType.DARK
+    } else {
+      nextTheme = ThemeType.LIGHT
+    }
+    ThemeManager.setTheme(nextTheme)
   }
 }

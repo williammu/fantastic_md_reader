@@ -1,25 +1,8 @@
 {
   "app": {
-    // 注释掉签名配置（模拟器不需要签名）
-    // "signingConfigs": [
-    //   {
-    //     "name": "default",
-    //     "type": "HarmonyOS",
-    //     "material": {
-    //       "certpath": "C:/Users/IxorStorm/.ohos/config/default_md_reader_mG4PfzrXFMzF1GRn09phB6R1fWXgIZiCLZuKLnRCKWE=.cer",
-    //       "keyAlias": "debugKey",
-    //       "keyPassword": "0000001B8E7E9A44B8C5B1449E40C0F2A3C3E3F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3",
-    //       "profile": "C:/Users/IxorStorm/.ohos/config/default_md_reader_mG4PfzrXFMzF1GRn09phB6R1fWXgIZiCLZuKLnRCKWE=.p7b",
-    //       "signAlg": "SHA256withECDSA",
-    //       "storeFile": "C:/Users/IxorStorm/.ohos/config/default_md_reader_mG4PfzrXFMzF1GRn09phB6R1fWXgIZiCLZuKLnRCKWE=.p12",
-    //       "storePassword": "0000001B8E7E9A44B8C5B1449E40C0F2A3C3E3F7A8B9C0D1E2F3A4B5C6D7E8F9A0B1C2D3E4F5A6B7C8D9E0F1A2B3"
-    //     }
-    //   }
-    // ],
     "products": [
       {
         "name": "default",
-        // "signingConfig": "default",  // 注释掉签名配置
         "targetSdkVersion": "6.0.2(22)",
         "compatibleSdkVersion": "6.0.2(22)",
         "runtimeOS": "HarmonyOS",
